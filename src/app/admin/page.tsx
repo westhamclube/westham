@@ -56,7 +56,7 @@ export default function AdminPage() {
   // News states
   const [newsTitle, setNewsTitle] = useState('');
   const [newsContent, setNewsContent] = useState('');
-  const [newsCategory, setNewsCategory] = useState('general');
+  const [newsCategory, setNewsCategory] = useState<News['categoria']>('general');
   const [newsModalidade, setNewsModalidade] = useState<NewsModalidade>('campo');
   const [newsImage, setNewsImage] = useState('');
   const [newsVideo, setNewsVideo] = useState('');
@@ -731,7 +731,7 @@ export default function AdminPage() {
                       <label className="text-sm font-semibold text-gray-700">Categoria</label>
                       <select
                         value={newsCategory}
-                        onChange={(e) => setNewsCategory(e.target.value)}
+                        onChange={(e) => setNewsCategory(e.target.value as News['categoria'])}
                         className="px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-600 focus:outline-none"
                       >
                         <option value="general">Geral</option>
