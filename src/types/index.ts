@@ -59,6 +59,7 @@ export interface News {
   data_criacao: string;
   data_atualizacao: string;
   categoria: 'match' | 'player' | 'general' | 'academy';
+  modalidade?: NewsModalidade;
   imagem_url?: string;
   video_url?: string;
   midia_url?: string; // URLs adicionais de mídia (separadas por vírgula)
