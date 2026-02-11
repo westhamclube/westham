@@ -30,15 +30,13 @@ export default function DashboardPage() {
   const [showLive, setShowLive] = useState(false);
   const [upcomingMatches, setUpcomingMatches] = useState<Match[]>([]);
   const [loadingMatches, setLoadingMatches] = useState(true);
-  const [featuredPlayers, setFeaturedPlayers] = useState<any[]>([]);
-  const [loadingPlayers, setLoadingPlayers] = useState(true);
 
   useEffect(() => {
     async function loadFeatured() {
       try {
         const [newsRes, productsRes, projectsRes] = await Promise.all([
           supabase.from('news').select('*').order('created_at', { ascending: false }).limit(4),
-          supabase.from('store_products').select('*').eq('ativo', true).order('created_at', { ascending: false }).limit(4),
+          supabase.from('store_products').select('*').eq('ativo', true).eq('destaque', true).order('created_at', { ascending: false }).limit(4),
           supabase.from('projects').select('*').order('created_at', { ascending: false }).limit(4),
         ]);
 
@@ -121,29 +119,6 @@ export default function DashboardPage() {
     }
 
     loadUpcomingMatches();
-  }, []);
-
-  // Destaque de jogadores (3 principais) para o dashboard
-  useEffect(() => {
-    async function loadFeaturedPlayers() {
-      try {
-        const { data, error } = await supabase
-          .from('players')
-          .select('id, nome, numero, posicao, gols, nivel, foto_url')
-          .order('gols', { ascending: false })
-          .limit(3);
-
-        if (!error && data) {
-          setFeaturedPlayers(data);
-        } else {
-          setFeaturedPlayers([]);
-        }
-      } finally {
-        setLoadingPlayers(false);
-      }
-    }
-
-    loadFeaturedPlayers();
   }, []);
 
   const handleAddToCart = (product: any) => {
@@ -310,63 +285,6 @@ export default function DashboardPage() {
 
                     <section>
                       <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-xl font-bold text-neutral-800">Destaques do elenco</h2>
-                        <Link
-                          href="/dashboard/jogadores"
-                          className="text-sm font-medium text-orange-600 hover:text-orange-500"
-                        >
-                          Ver todos os jogadores →
-                        </Link>
-                      </div>
-                      {loadingPlayers ? (
-                        <p className="text-neutral-500 text-sm">Carregando elenco...</p>
-                      ) : featuredPlayers.length === 0 ? (
-                        <Card className="p-6 text-neutral-500 text-sm">
-                          Nenhum jogador cadastrado ainda. O administrador pode montar o elenco
-                          pelo painel.
-                        </Card>
-                      ) : (
-                        <div className="grid sm:grid-cols-3 gap-4">
-                          {featuredPlayers.map((player) => (
-                            <Card
-                              key={player.id}
-                              className="p-4 text-center hover:border-orange-500/50 transition flex flex-col items-center"
-                            >
-                              <div className="w-16 h-16 rounded-full bg-neutral-200 overflow-hidden mb-2 flex items-center justify-center">
-                                {player.foto_url ? (
-                                  <img
-                                    src={player.foto_url}
-                                    alt={player.nome}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <span className="text-2xl font-bold text-neutral-500">
-                                    {player.nome?.[0]?.toUpperCase()}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="font-semibold text-neutral-900">{player.nome}</p>
-                              <p className="text-xs text-neutral-500 mb-1">
-                                #{player.numero} • {player.posicao}
-                              </p>
-                              <p className="text-xs text-neutral-600 mb-2">
-                                Gols: <span className="font-semibold">{player.gols ?? 0}</span> •
-                                Nível: <span className="font-semibold">{player.nivel ?? 5}/10</span>
-                              </p>
-                              <Link
-                                href={`/dashboard/jogadores/${player.id}`}
-                                className="mt-auto inline-flex text-xs font-semibold text-orange-600 hover:text-orange-500"
-                              >
-                                Ver perfil
-                              </Link>
-                            </Card>
-                          ))}
-                        </div>
-                      )}
-                    </section>
-
-                    <section>
-                      <div className="flex items-center justify-between mb-4">
                         <h2 className="text-xl font-bold text-neutral-800">Projetos</h2>
                         <Link href="/dashboard/projetos" className="text-sm font-medium text-orange-600 hover:text-orange-500">
                           Ver projetos →
@@ -444,21 +362,8 @@ export default function DashboardPage() {
                     </section>
                   </div>
 
-              {/* Sidebar: explicação sócio, contato e redes sociais, Assista ao vivo */}
+              {/* Sidebar: contato, redes sociais, Assista ao vivo */}
                   <div className="space-y-6">
-                    <Card className="border-2 border-orange-500/40 bg-gradient-to-br from-orange-50 to-neutral-50 p-6">
-                      <h3 className="font-bold text-neutral-900 mb-3">Torne-se sócio do Westham</h3>
-                      <p className="text-neutral-600 text-sm mb-4">
-                        A sociedade de sócios é o coração do clube. Como sócio, você tem descontos
-                        exclusivos na loja, carteirinha digital, acesso a estatísticas avançadas dos
-                        jogadores, conteúdos exclusivos e participação ativa na vida do clube. Faça
-                        parte da família Westham.
-                      </p>
-                      <Link href="/virar-socio">
-                        <Button size="md" className="w-full">Saiba como virar sócio</Button>
-                      </Link>
-                    </Card>
-
                     <Card className="p-6">
                       <h3 className="font-bold text-neutral-800 mb-2">
                         Quer ingressar no nosso time ou marcar um amistoso?

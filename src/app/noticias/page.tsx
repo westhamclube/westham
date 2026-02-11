@@ -10,7 +10,7 @@ import type { News } from '@/types';
 export default function NoticiasPage() {
   const [news, setNews] = useState<News[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterModalidade, setFilterModalidade] = useState<'todas' | 'campo' | 'futsal' | 'fut7'>('todas');
+  const [filterModalidade, setFilterModalidade] = useState<'todas' | 'campo' | 'futsal' | 'fut7' | 'redes'>('todas');
 
   useEffect(() => {
     const load = async () => {
@@ -32,6 +32,7 @@ export default function NoticiasPage() {
             modalidade: n.modalidade,
             imagem_url: n.imagem_url,
             video_url: n.video_url,
+            link_externo: n.link_externo,
             midia_url: n.midia_url,
             destaque: n.destaque,
             curtidas: n.curtidas ?? 0,
@@ -49,13 +50,15 @@ export default function NoticiasPage() {
   const filteredNews =
     filterModalidade === 'todas'
       ? news
-      : news.filter((n) => (n as any).modalidade === filterModalidade);
+      : filterModalidade === 'redes'
+        ? news.filter((n) => n.categoria === 'social')
+        : news.filter((n) => (n as any).modalidade === filterModalidade);
 
   return (
     <>
       <Header />
-      <main className="bg-neutral-950 min-h-screen py-10">
-        <div className="max-w-7xl mx-auto px-6 space-y-8">
+      <main className="bg-neutral-950 min-h-screen py-8 sm:py-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-8">
           <h1 className="text-3xl md:text-4xl font-extrabold text-orange-300">
             Notícias do Clube
           </h1>
@@ -72,6 +75,7 @@ export default function NoticiasPage() {
               className="px-4 py-2 rounded-lg bg-neutral-900 border border-neutral-700 text-neutral-100 text-sm"
             >
               <option value="todas">Todas</option>
+              <option value="redes">Redes sociais</option>
               <option value="campo">Campo</option>
               <option value="futsal">Futsal</option>
               <option value="fut7">FUT7</option>

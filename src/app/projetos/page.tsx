@@ -53,7 +53,7 @@ export default function ProjetosPage() {
       <main className="bg-neutral-950 min-h-screen py-10">
         <div className="max-w-7xl mx-auto px-6 space-y-8">
           <h1 className="text-3xl md:text-4xl font-extrabold text-orange-300">
-            Projetos &amp; Escolinha Westham
+            Projetos
           </h1>
           <p className="text-neutral-300 text-sm md:text-base">
             Aqui ficam os projetos oficiais do clube: escolinha infantil, ações sociais, peneiras

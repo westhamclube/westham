@@ -30,11 +30,12 @@ export function Header() {
       <Link href={user ? '/dashboard/noticias' : '/noticias'} className="px-2 py-1 rounded hover:text-orange-300 hover:bg-white/5 transition" onClick={() => setMenuOpen(false)}>
         Notícias
       </Link>
-      {user && (
-        <Link href="/dashboard/socios" className="px-2 py-1 rounded hover:text-orange-300 hover:bg-white/5 transition" onClick={() => setMenuOpen(false)}>
-          Sócios
-        </Link>
-      )}
+      <Link href="/jogos" className="px-2 py-1 rounded hover:text-orange-300 hover:bg-white/5 transition" onClick={() => setMenuOpen(false)}>
+        Jogos
+      </Link>
+      <Link href="/historia" className="px-2 py-1 rounded hover:text-orange-300 hover:bg-white/5 transition" onClick={() => setMenuOpen(false)}>
+        História
+      </Link>
       {user && (
         <>
           <Link href="/dashboard/perfil" className="px-2 py-1 rounded hover:text-orange-300 hover:bg-white/5 transition" onClick={() => setMenuOpen(false)}>
@@ -80,19 +81,6 @@ export function Header() {
                   Painel Admin
                 </Link>
               )}
-              <div className="flex items-center gap-2 text-xs text-neutral-200">
-                <span className="font-semibold truncate max-w-[120px]">{user.nome || user.email}</span>
-                <span
-                  className={`px-2 py-0.5 rounded-full border text-[11px] font-semibold ${
-                    user.role === 'sócio' ? 'bg-emerald-500/10 border-emerald-400 text-emerald-200'
-                    : user.role === 'jogador' ? 'bg-sky-500/10 border-sky-400 text-sky-200'
-                    : user.role === 'admin' ? 'bg-purple-500/10 border-purple-400 text-purple-200'
-                    : 'bg-neutral-700/40 border-neutral-400/60 text-neutral-100'
-                  }`}
-                >
-                  {user.role === 'sócio' ? 'Sócio' : user.role === 'jogador' ? 'Jogador' : user.role === 'admin' ? 'Admin' : 'Membro'}
-                </span>
-              </div>
               <Button size="sm" variant="secondary" onClick={handleLogout}>Sair</Button>
             </>
           ) : (
@@ -148,18 +136,7 @@ export function Header() {
                 </Link>
               )}
               {user ? (
-                <div className="mt-4 pt-4 border-t border-neutral-700 space-y-2">
-                  <p className="text-xs text-neutral-400 px-2">{user.nome || user.email}</p>
-                  <p className="px-2">
-                    <span className={`inline-block px-2 py-1 rounded-full border text-xs font-semibold ${
-                      user.role === 'sócio' ? 'bg-emerald-500/10 border-emerald-400 text-emerald-200'
-                      : user.role === 'jogador' ? 'bg-sky-500/10 border-sky-400 text-sky-200'
-                      : user.role === 'admin' ? 'bg-purple-500/10 border-purple-400 text-purple-200'
-                      : 'bg-neutral-700/40 border-neutral-400/60 text-neutral-100'
-                    }`}>
-                      {user.role === 'sócio' ? 'Sócio' : user.role === 'jogador' ? 'Jogador' : user.role === 'admin' ? 'Admin' : 'Membro'}
-                    </span>
-                  </p>
+                <div className="mt-4 pt-4 border-t border-neutral-700">
                   <Button size="sm" variant="secondary" className="w-full justify-center" onClick={handleLogout}>Sair</Button>
                 </div>
               ) : (

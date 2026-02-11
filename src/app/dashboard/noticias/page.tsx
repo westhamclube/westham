@@ -10,7 +10,7 @@ import type { News } from '@/types';
 export default function DashboardNoticiasPage() {
   const [news, setNews] = useState<News[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterModalidade, setFilterModalidade] = useState<'todas' | 'campo' | 'futsal' | 'fut7'>('todas');
+  const [filterModalidade, setFilterModalidade] = useState<'todas' | 'campo' | 'futsal' | 'fut7' | 'redes'>('todas');
 
   useEffect(() => {
     const load = async () => {
@@ -32,6 +32,7 @@ export default function DashboardNoticiasPage() {
             modalidade: n.modalidade,
             imagem_url: n.imagem_url,
             video_url: n.video_url,
+            link_externo: n.link_externo,
             midia_url: n.midia_url,
             destaque: n.destaque,
             curtidas: n.curtidas ?? 0,
@@ -49,7 +50,9 @@ export default function DashboardNoticiasPage() {
   const filteredNews =
     filterModalidade === 'todas'
       ? news
-      : news.filter((n) => (n as any).modalidade === filterModalidade);
+      : filterModalidade === 'redes'
+        ? news.filter((n) => n.categoria === 'social')
+        : news.filter((n) => (n as any).modalidade === filterModalidade);
 
   return (
     <main className="bg-neutral-950 min-h-screen py-10">
@@ -78,6 +81,7 @@ export default function DashboardNoticiasPage() {
             className="px-4 py-2 rounded-lg bg-neutral-900 border border-neutral-700 text-neutral-100 text-sm"
           >
             <option value="todas">Todas</option>
+            <option value="redes">Redes sociais</option>
             <option value="campo">Campo</option>
             <option value="futsal">Futsal</option>
             <option value="fut7">FUT7</option>

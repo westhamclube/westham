@@ -49,7 +49,7 @@ function guessImgurDirect(url: string) {
 export default function AdminPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'news' | 'players' | 'lineup' | 'ranks' | 'shop' | 'socio' | 'suporte'>('ranks');
+  const [activeTab, setActiveTab] = useState<'news' | 'players' | 'lineup' | 'ranks' | 'shop' | 'socio' | 'suporte' | 'historia'>('ranks');
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   
@@ -60,6 +60,7 @@ export default function AdminPage() {
   const [newsModalidade, setNewsModalidade] = useState<NewsModalidade>('campo');
   const [newsImage, setNewsImage] = useState('');
   const [newsVideo, setNewsVideo] = useState('');
+  const [newsLinkExterno, setNewsLinkExterno] = useState('');
   const [newsList, setNewsList] = useState<News[]>([]);
   const [editingNews, setEditingNews] = useState<string | null>(null);
 
@@ -68,6 +69,13 @@ export default function AdminPage() {
   const [playerNumber, setPlayerNumber] = useState('');
   const [playerPosition, setPlayerPosition] = useState('');
   const [playerAge, setPlayerAge] = useState('');
+  const [playerJogaCampo, setPlayerJogaCampo] = useState(true);
+  const [playerJogaFut7, setPlayerJogaFut7] = useState(false);
+  const [playerJogaFutsal, setPlayerJogaFutsal] = useState(false);
+  const [editingPlayerModalidades, setEditingPlayerModalidades] = useState<string | null>(null);
+  const [editModalidadesCampo, setEditModalidadesCampo] = useState(true);
+  const [editModalidadesFut7, setEditModalidadesFut7] = useState(false);
+  const [editModalidadesFutsal, setEditModalidadesFutsal] = useState(false);
   const [playersList, setPlayersList] = useState<any[]>([]);
 
   // Lineup states
@@ -96,11 +104,19 @@ export default function AdminPage() {
   const [productStock, setProductStock] = useState('');
   const [temDescontoSocio, setTemDescontoSocio] = useState(false);
   const [descontoSocio, setDescontoSocio] = useState('');
+  const [productDestaque, setProductDestaque] = useState(false);
   const [productsList, setProductsList] = useState<Product[]>([]);
   const [editingProduct, setEditingProduct] = useState<string | null>(null);
 
   const [socioRequests, setSocioRequests] = useState<any[]>([]);
   const [supportMessages, setSupportMessages] = useState<any[]>([]);
+  const [historyBlocks, setHistoryBlocks] = useState<any[]>([]);
+  const [historyPhotos, setHistoryPhotos] = useState<any[]>([]);
+  const [historyTitulo, setHistoryTitulo] = useState('');
+  const [historyConteudo, setHistoryConteudo] = useState('');
+  const [editingHistoryId, setEditingHistoryId] = useState<string | null>(null);
+  const [newPhotoUrl, setNewPhotoUrl] = useState('');
+  const [newPhotoLegenda, setNewPhotoLegenda] = useState('');
 
   useEffect(() => {
     if (!loading && (!user || user.role !== 'admin')) {
@@ -161,8 +177,10 @@ export default function AdminPage() {
               data_criacao: n.created_at,
               data_atualizacao: n.updated_at,
               categoria: n.categoria,
+              modalidade: n.modalidade,
               imagem_url: n.imagem_url,
               video_url: n.video_url,
+              link_externo: n.link_externo,
               midia_url: n.midia_url,
               destaque: n.destaque,
               curtidas: n.curtidas ?? 0,
@@ -208,6 +226,27 @@ export default function AdminPage() {
     }
   }, [user, loading, router]);
 
+  useEffect(() => {
+    if (activeTab !== 'historia' || !user) return;
+    const load = async () => {
+      const [hRes, pRes] = await Promise.all([
+        supabase.from('club_history').select('*').order('ordem', { ascending: true }),
+        supabase.from('club_history_photos').select('*').order('ordem', { ascending: true }),
+      ]);
+      if (!hRes.error && hRes.data) {
+        setHistoryBlocks(hRes.data);
+        const first = hRes.data[0];
+        if (first) {
+          setHistoryTitulo(first.titulo || '');
+          setHistoryConteudo(first.conteudo || '');
+          setEditingHistoryId(first.id);
+        }
+      }
+      if (!pRes.error && pRes.data) setHistoryPhotos(pRes.data);
+    };
+    load();
+  }, [activeTab, user]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -230,7 +269,7 @@ export default function AdminPage() {
   const handlePostNews = async () => {
     if (!newsTitle.trim() || !newsContent.trim() || !user) return;
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       titulo: newsTitle,
       conteudo: newsContent,
       categoria: newsCategory,
@@ -239,6 +278,7 @@ export default function AdminPage() {
       video_url: newsVideo || null,
       autor_id: user.id,
     };
+    payload.link_externo = newsCategory === 'social' ? (newsLinkExterno || null) : null;
 
     if (editingNews) {
       const { error } = await supabase.from('news').update(payload).eq('id', editingNews);
@@ -252,13 +292,14 @@ export default function AdminPage() {
           n.id === editingNews
             ? {
                 ...n,
-                titulo: payload.titulo,
-                conteudo: payload.conteudo,
-                categoria: payload.categoria,
+                titulo: payload.titulo as string,
+                conteudo: payload.conteudo as string,
+                categoria: payload.categoria as News['categoria'],
                 modalidade: payload.modalidade,
                 imagem_url: payload.imagem_url ?? undefined,
                 video_url: payload.video_url ?? undefined,
-                autor_id: payload.autor_id,
+                link_externo: payload.link_externo ?? undefined,
+                autor_id: payload.autor_id as string,
               }
             : n,
         ),
@@ -288,6 +329,7 @@ export default function AdminPage() {
         modalidade: data.modalidade as NewsModalidade | undefined,
         imagem_url: data.imagem_url,
         video_url: data.video_url,
+        link_externo: data.link_externo,
         midia_url: data.midia_url,
         destaque: data.destaque,
         curtidas: data.curtidas ?? 0,
@@ -303,6 +345,7 @@ export default function AdminPage() {
     setNewsContent('');
     setNewsImage('');
     setNewsVideo('');
+    setNewsLinkExterno('');
   };
 
   const handleDeleteNews = async (id: string) => {
@@ -324,11 +367,17 @@ export default function AdminPage() {
     setNewsModalidade((news.modalidade || 'campo') as NewsModalidade);
     setNewsImage(news.imagem_url || '');
     setNewsVideo(news.video_url || '');
+    setNewsLinkExterno(news.link_externo || '');
   };
 
   // Players handlers
   const handleAddPlayer = async () => {
     if (!playerName.trim() || !playerNumber || !playerPosition) return;
+    const atLeastOne = playerJogaCampo || playerJogaFut7 || playerJogaFutsal;
+    if (!atLeastOne) {
+      showFeedback('error', 'Marque pelo menos uma modalidade (Campo, FUT 7 ou Futsal).');
+      return;
+    }
 
     const payload = {
       nome: playerName,
@@ -337,6 +386,9 @@ export default function AdminPage() {
       idade: playerAge ? parseInt(playerAge, 10) : null,
       gols: 0,
       nivel: 5,
+      joga_campo: playerJogaCampo,
+      joga_fut7: playerJogaFut7,
+      joga_futsal: playerJogaFutsal,
     };
 
     const { data, error } = await supabase.from('players').insert(payload).select('*').single();
@@ -351,6 +403,35 @@ export default function AdminPage() {
     setPlayerNumber('');
     setPlayerPosition('');
     setPlayerAge('');
+    setPlayerJogaCampo(true);
+    setPlayerJogaFut7(false);
+    setPlayerJogaFutsal(false);
+  };
+
+  const handleSavePlayerModalidades = async () => {
+    if (!editingPlayerModalidades) return;
+    const joga_campo = editModalidadesCampo;
+    const joga_fut7 = editModalidadesFut7;
+    const joga_futsal = editModalidadesFutsal;
+    if (!joga_campo && !joga_fut7 && !joga_futsal) {
+      showFeedback('error', 'Marque pelo menos uma modalidade.');
+      return;
+    }
+    const { error } = await supabase.from('players').update({ joga_campo, joga_fut7, joga_futsal }).eq('id', editingPlayerModalidades);
+    if (error) {
+      showFeedback('error', error.message);
+      return;
+    }
+    setPlayersList((prev) => prev.map((p) => (p.id === editingPlayerModalidades ? { ...p, joga_campo, joga_fut7, joga_futsal } : p)));
+    setEditingPlayerModalidades(null);
+    showFeedback('success', 'Modalidades atualizadas!');
+  };
+
+  const openEditModalidades = (player: any) => {
+    setEditingPlayerModalidades(player.id);
+    setEditModalidadesCampo(player.joga_campo !== false);
+    setEditModalidadesFut7(!!player.joga_fut7);
+    setEditModalidadesFutsal(!!player.joga_futsal);
   };
 
   const handleDeletePlayer = async (id: string) => {
@@ -400,6 +481,7 @@ export default function AdminPage() {
         tem_desconto_socio: temDescontoSocio,
         desconto_socio: temDescontoSocio ? parseInt(descontoSocio || '0', 10) : null,
         ativo: true,
+        destaque: productDestaque,
       };
 
       if (editingProduct) {
@@ -465,8 +547,9 @@ export default function AdminPage() {
       setNewModelInput('');
       setProductStock('');
       setProductCategory('camiseta');
-      setTemDescontoSocio(false);
-      setDescontoSocio('');
+    setTemDescontoSocio(false);
+    setDescontoSocio('');
+    setProductDestaque(false);
     } else {
       showFeedback('error', 'Preencha todos os campos obrigatórios do produto.');
     }
@@ -495,6 +578,7 @@ export default function AdminPage() {
     setProductStock(product.estoque?.toString() || '');
     setTemDescontoSocio(product.tem_desconto_socio || false);
     setDescontoSocio(product.desconto_socio?.toString() || '');
+    setProductDestaque(!!(product as any).destaque);
   };
 
   return (
@@ -536,6 +620,7 @@ export default function AdminPage() {
               { id: 'players', label: 'Jogadores', icon: '⚽' },
               { id: 'lineup', label: 'Escalação', icon: '🏆' },
               { id: 'shop', label: 'Loja', icon: '🛍️' },
+              { id: 'historia', label: 'História', icon: '📜' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -716,6 +801,101 @@ export default function AdminPage() {
             </Card>
           )}
 
+          {/* História do clube */}
+          {activeTab === 'historia' && (
+            <Card className="shadow-2xl">
+              <h2 className="text-2xl font-bold mb-2 text-gray-800">📜 História do Westham</h2>
+              <p className="text-gray-600 mb-6">
+                Edite o texto e as fotos da página /historia. (Execute a migração SQL no Supabase se as tabelas club_history e club_history_photos não existirem.)
+              </p>
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Título</label>
+                  <input
+                    type="text"
+                    value={historyTitulo}
+                    onChange={(e) => setHistoryTitulo(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg"
+                    placeholder="Ex: História do Westham"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Conteúdo (texto da história)</label>
+                  <textarea
+                    value={historyConteudo}
+                    onChange={(e) => setHistoryConteudo(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg min-h-[200px]"
+                    placeholder="Escreva a história do clube..."
+                  />
+                </div>
+                <Button
+                  onClick={async () => {
+                    if (!editingHistoryId) return;
+                    const { error } = await supabase.from('club_history').update({ titulo: historyTitulo, conteudo: historyConteudo, updated_at: new Date().toISOString() }).eq('id', editingHistoryId);
+                    if (error) showFeedback('error', error.message);
+                    else showFeedback('success', 'História atualizada!');
+                  }}
+                >
+                  Salvar história
+                </Button>
+                <hr className="border-gray-200" />
+                <div>
+                  <h3 className="font-bold text-gray-800 mb-3">Fotos da galeria (rodapé)</h3>
+                  <div className="flex gap-2 mb-4">
+                    <input
+                      type="text"
+                      placeholder="URL da foto"
+                      value={newPhotoUrl}
+                      onChange={(e) => setNewPhotoUrl(e.target.value)}
+                      className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Legenda"
+                      value={newPhotoLegenda}
+                      onChange={(e) => setNewPhotoLegenda(e.target.value)}
+                      className="w-40 px-4 py-2 border-2 border-gray-300 rounded-lg"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        if (!newPhotoUrl.trim() || historyBlocks.length === 0) return;
+                        const historyId = historyBlocks[0].id;
+                        const { data, error } = await supabase.from('club_history_photos').insert({ history_id: historyId, url: newPhotoUrl.trim(), legenda: newPhotoLegenda.trim() || null, ordem: historyPhotos.length }).select('*').single();
+                        if (error) showFeedback('error', error.message);
+                        else {
+                          if (data) setHistoryPhotos((prev) => [...prev, data]);
+                          setNewPhotoUrl('');
+                          setNewPhotoLegenda('');
+                          showFeedback('success', 'Foto adicionada!');
+                        }
+                      }}
+                    >
+                      Adicionar foto
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {historyPhotos.map((p) => (
+                      <div key={p.id} className="relative w-24 h-24 rounded overflow-hidden bg-gray-100 border">
+                        <img src={p.url} alt={p.legenda || ''} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await supabase.from('club_history_photos').delete().eq('id', p.id);
+                            setHistoryPhotos((prev) => prev.filter((x) => x.id !== p.id));
+                          }}
+                          className="absolute top-0 right-0 bg-red-600 text-white text-xs px-1"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
+
           {/* News Tab */}
           {activeTab === 'news' && (
             <div className="grid lg:grid-cols-3 gap-8">
@@ -744,6 +924,7 @@ export default function AdminPage() {
                         <option value="match">Partida</option>
                         <option value="player">Jogador</option>
                         <option value="academy">Academia</option>
+                        <option value="social">Redes sociais</option>
                       </select>
                     </div>
 
@@ -760,6 +941,15 @@ export default function AdminPage() {
                       </select>
                     </div>
                   </div>
+
+                  {newsCategory === 'social' && (
+                    <Input
+                      label="Link da publicação (Instagram / Facebook / TikTok)"
+                      placeholder="https://instagram.com/p/..."
+                      value={newsLinkExterno}
+                      onChange={(e) => setNewsLinkExterno(e.target.value)}
+                    />
+                  )}
 
                   <Input
                     label="URL da Imagem"
@@ -836,6 +1026,7 @@ export default function AdminPage() {
                           setNewsContent('');
                           setNewsImage('');
                           setNewsVideo('');
+                          setNewsLinkExterno('');
                         }}
                         variant="secondary"
                       >
@@ -918,6 +1109,39 @@ export default function AdminPage() {
                   />
                 </div>
 
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg border-2 border-gray-200">
+                  <p className="text-sm font-semibold text-gray-700 mb-3">Onde joga? (marque um ou mais)</p>
+                  <div className="flex flex-wrap gap-6">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={playerJogaCampo}
+                        onChange={(e) => setPlayerJogaCampo(e.target.checked)}
+                        className="w-5 h-5 rounded border-gray-300"
+                      />
+                      <span className="font-medium text-gray-800">Campo</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={playerJogaFut7}
+                        onChange={(e) => setPlayerJogaFut7(e.target.checked)}
+                        className="w-5 h-5 rounded border-gray-300"
+                      />
+                      <span className="font-medium text-gray-800">FUT 7</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={playerJogaFutsal}
+                        onChange={(e) => setPlayerJogaFutsal(e.target.checked)}
+                        className="w-5 h-5 rounded border-gray-300"
+                      />
+                      <span className="font-medium text-gray-800">Futsal</span>
+                    </label>
+                  </div>
+                </div>
+
                 <Button size="lg" className="w-full mt-6" onClick={handleAddPlayer}>
                   ➕ Adicionar Jogador
                 </Button>
@@ -934,17 +1158,51 @@ export default function AdminPage() {
                         <th className="text-left py-3 px-4 font-semibold text-gray-800">#</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-800">Nome</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-800">Posição</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-800">Onde joga</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-800">Idade</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-800">Gols</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-800">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {playersList.map((player) => (
+                      {playersList.map((player) => {
+                        const jogaCampo = player.joga_campo !== false;
+                        const jogaFut7 = !!player.joga_fut7;
+                        const jogaFutsal = !!player.joga_futsal;
+                        const isEditing = editingPlayerModalidades === player.id;
+                        return (
                         <tr key={player.id} className="border-b border-gray-200 hover:bg-red-50">
                           <td className="py-3 px-4 font-bold text-red-600">{player.numero}</td>
                           <td className="py-3 px-4 text-gray-800">{player.nome}</td>
                           <td className="py-3 px-4 text-gray-600">{player.posicao}</td>
+                          <td className="py-3 px-4">
+                            {isEditing ? (
+                              <div className="flex flex-wrap gap-3 items-center">
+                                <label className="flex items-center gap-1 cursor-pointer">
+                                  <input type="checkbox" checked={editModalidadesCampo} onChange={(e) => setEditModalidadesCampo(e.target.checked)} className="rounded" />
+                                  Campo
+                                </label>
+                                <label className="flex items-center gap-1 cursor-pointer">
+                                  <input type="checkbox" checked={editModalidadesFut7} onChange={(e) => setEditModalidadesFut7(e.target.checked)} className="rounded" />
+                                  FUT7
+                                </label>
+                                <label className="flex items-center gap-1 cursor-pointer">
+                                  <input type="checkbox" checked={editModalidadesFutsal} onChange={(e) => setEditModalidadesFutsal(e.target.checked)} className="rounded" />
+                                  Futsal
+                                </label>
+                                <Button size="sm" onClick={handleSavePlayerModalidades}>Salvar</Button>
+                                <button type="button" onClick={() => setEditingPlayerModalidades(null)} className="text-gray-500 text-sm hover:underline">Cancelar</button>
+                              </div>
+                            ) : (
+                              <span className="flex flex-wrap gap-1">
+                                {jogaCampo && <span className="px-2 py-0.5 rounded bg-green-100 text-green-800 text-xs">Campo</span>}
+                                {jogaFut7 && <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-xs">FUT 7</span>}
+                                {jogaFutsal && <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 text-xs">Futsal</span>}
+                                {!jogaCampo && !jogaFut7 && !jogaFutsal && <span className="text-gray-400 text-xs">—</span>}
+                                <button type="button" onClick={() => openEditModalidades(player)} className="text-orange-600 text-xs hover:underline">Editar</button>
+                              </span>
+                            )}
+                          </td>
                           <td className="py-3 px-4 text-gray-600">{player.idade} anos</td>
                           <td className="py-3 px-4">
                             <input 
@@ -960,7 +1218,7 @@ export default function AdminPage() {
                             </Button>
                           </td>
                         </tr>
-                      ))}
+                      );})}
                     </tbody>
                   </table>
                 </div>
@@ -1137,6 +1395,17 @@ export default function AdminPage() {
                   </div>
                 </div>
 
+                {/* Destaque na página inicial */}
+                <div className="mt-4 flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={productDestaque}
+                    onChange={(e) => setProductDestaque(e.target.checked)}
+                    className="w-5 h-5 rounded"
+                  />
+                  <label className="text-sm font-semibold text-gray-700">Destaque na página inicial (um dos 4 da loja)</label>
+                </div>
+
                 {/* Desconto para Sócios */}
                 <div className="mt-4 bg-orange-50 p-4 rounded-lg border-2 border-orange-200">
                   <div className="flex items-center gap-3 mb-3">
@@ -1187,6 +1456,7 @@ export default function AdminPage() {
                         setProductImage('');
                         setProductStock('');
                         setProductCategory('camiseta');
+                        setProductDestaque(false);
                       }}
                       variant="secondary"
                     >

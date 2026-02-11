@@ -58,7 +58,7 @@ export default function DashboardProjetosPage() {
             ← Voltar ao dashboard
           </Link>
           <h1 className="text-3xl md:text-4xl font-extrabold text-orange-300">
-            Projetos & Escolinha Westham
+            Projetos
           </h1>
           <p className="text-neutral-300 text-sm md:text-base mt-2">
             Aqui ficam os projetos oficiais do clube: escolinha infantil, ações sociais, peneiras

@@ -115,7 +115,7 @@ export function NewsCard({ news, onUpdate, onDelete, onEdit }: NewsCardProps) {
           </span>
         )}
         <span className="inline-block bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-semibold">
-          {localNews.category || localNews.categoria}
+          {(localNews.category || localNews.categoria) === 'social' ? 'Redes sociais' : (localNews.category || localNews.categoria)}
         </span>
       </div>
       
@@ -135,6 +135,17 @@ export function NewsCard({ news, onUpdate, onDelete, onEdit }: NewsCardProps) {
       )}
 
       <p className="text-gray-700 mb-4">{localNews.conteudo}</p>
+
+      {localNews.link_externo && (
+        <a
+          href={localNews.link_externo}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block mt-2 text-orange-600 font-semibold hover:underline"
+        >
+          Conferir publicação →
+        </a>
+      )}
 
       {/* Likes and Comments Section */}
       <div className="border-t pt-3 space-y-2">

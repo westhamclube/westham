@@ -58,9 +58,11 @@ export interface News {
   autor_id: string;
   data_criacao: string;
   data_atualizacao: string;
-  categoria: 'match' | 'player' | 'general' | 'academy';
+  categoria: 'match' | 'player' | 'general' | 'academy' | 'social';
   modalidade?: NewsModalidade;
   imagem_url?: string;
+  /** URL da publicação (Instagram, Facebook, TikTok) — usado quando categoria é 'social' */
+  link_externo?: string;
   video_url?: string;
   midia_url?: string; // URLs adicionais de mídia (separadas por vírgula)
   destaque: boolean;

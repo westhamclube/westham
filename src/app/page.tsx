@@ -10,14 +10,16 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { News, NewsModalidade } from '@/types';
 
+type MatchRow = { id: string; data: string; adversario: string; local: string; modalidade?: string };
+
 export default function HomePage() {
   const { user } = useAuth();
   const [newsList, setNewsList] = useState<News[]>([]);
   const [loadingNews, setLoadingNews] = useState(true);
-  const [playersList, setPlayersList] = useState<any[]>([]);
-  const [loadingPlayers, setLoadingPlayers] = useState(true);
-  const [stats, setStats] = useState({ jogadores: 0, gols: 0, vitorias: 0 });
-  const [showAllPlayers, setShowAllPlayers] = useState(false);
+  const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [monthlyMatches, setMonthlyMatches] = useState<MatchRow[]>([]);
+  const [loadingMatches, setLoadingMatches] = useState(true);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any | null>(null);
   const [showInstallInstructions, setShowInstallInstructions] = useState(false);
@@ -28,7 +30,7 @@ export default function HomePage() {
         .from('news')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(3);
+        .limit(6);
 
       if (!error && data) {
         setNewsList(
@@ -58,36 +60,25 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    async function loadPlayersAndStats() {
-      try {
-        const { data: players } = await supabase
-          .from('players')
-          .select('id, nome, numero, posicao, gols, nivel')
-          .order('gols', { ascending: false });
-        setPlayersList(players || []);
-
-        const jogadores = players?.length ?? 0;
-        const gols = players?.reduce((s, p) => s + (Number(p.gols) || 0), 0) ?? 0;
-
-        const { data: matches } = await supabase
-          .from('matches')
-          .select('gols_westham, gols_adversario')
-          .not('gols_westham', 'is', null)
-          .not('gols_adversario', 'is', null);
-        const vitorias =
-          matches?.filter(
-            (m) =>
-              (Number(m.gols_westham) ?? 0) > (Number(m.gols_adversario) ?? 0)
-          ).length ?? 0;
-
-        setStats({ jogadores, gols, vitorias });
-      } catch (_) {
-        setPlayersList([]);
-      } finally {
-        setLoadingPlayers(false);
+    const loadFeaturedProductsAndMatches = async () => {
+      const now = new Date();
+      const endOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0, 23, 59, 59);
+      const [productsRes, matchesRes] = await Promise.all([
+        supabase.from('store_products').select('*').eq('ativo', true).order('created_at', { ascending: false }).limit(8),
+        supabase.from('matches').select('id, data, adversario, local, modalidade').gte('data', now.toISOString()).lte('data', endOfNextMonth.toISOString()).order('data', { ascending: true }).limit(50),
+      ]);
+      if (!productsRes.error && productsRes.data) {
+        const withDestaque = productsRes.data.filter((p: any) => p.destaque === true);
+        const list = withDestaque.length >= 4 ? withDestaque.slice(0, 4) : productsRes.data.slice(0, 4);
+        setFeaturedProducts(list);
       }
-    }
-    loadPlayersAndStats();
+      if (!matchesRes.error && matchesRes.data) {
+        setMonthlyMatches(matchesRes.data as MatchRow[]);
+      }
+      setLoadingProducts(false);
+      setLoadingMatches(false);
+    };
+    loadFeaturedProductsAndMatches();
   }, []);
 
   // Banner para incentivar instalação como "app" (PWA)
@@ -134,8 +125,7 @@ export default function HomePage() {
     setShowInstallBanner(false);
   };
 
-  const top3Players = playersList.slice(0, 3);
-  const displayedPlayers = showAllPlayers ? playersList : top3Players;
+  const modalidadeLabel = (m?: string) => (m === 'fut7' ? 'FUT 7' : m === 'futsal' ? 'Futsal' : m === 'campo' ? 'Campo' : 'Campo');
 
   return (
     <>
@@ -243,18 +233,18 @@ export default function HomePage() {
                   A casa oficial do Westham na web
                 </h1>
                 <p className="text-lg md:text-xl mb-6 text-orange-100/90">
-                  FUT 7, Campo e Futsal, escolinha infantil, área do sócio e loja oficial em um só
-                  lugar. Estatísticas, notícias, cronograma de jogos e projetos sociais do clube.
+                  FUT 7, Campo e Futsal, área do sócio e loja oficial em um só lugar. Notícias,
+                  cronograma de jogos e projetos do clube.
                 </p>
 
                 {!user && (
                   <div className="flex flex-col sm:flex-row gap-4">
-                    <Link href="/signup">
+                    <Link href="/marcar-amistoso">
                       <Button
                         size="lg"
                         className="bg-orange-500 hover:bg-orange-400 text-black shadow-lg"
                       >
-                        Seja Sócio do Westham
+                        Quer marcar um amistoso?
                       </Button>
                     </Link>
                     <Link href="/login">
@@ -263,9 +253,15 @@ export default function HomePage() {
                         variant="secondary"
                         className="bg-transparent border border-orange-400 text-orange-100 hover:bg-orange-500/20"
                       >
-                        Entrar na sua conta
+                        Entrar
                       </Button>
                     </Link>
+                    <p className="text-orange-100/80 text-sm self-center">
+                      Ainda não tem conta?{' '}
+                      <Link href="/signup" className="text-orange-300 font-semibold hover:underline">
+                        Cadastre-se
+                      </Link>
+                    </p>
                   </div>
                 )}
 
@@ -317,239 +313,154 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Apresentação do clube e sociedade */}
-        <section className="max-w-7xl mx-auto px-6 py-16 space-y-10">
-          <div className="grid md:grid-cols-3 gap-8">
-            <Card className="bg-neutral-900 border border-neutral-800 col-span-2">
-              <h2 className="text-2xl md:text-3xl font-extrabold text-orange-300 mb-4">
-                Apresentação do Clube
-              </h2>
-              <p className="text-base md:text-lg text-neutral-100 leading-relaxed">
-                O <strong>Sport Club Westham</strong> é um clube de futebol de Guaíba que une
-                tradição, competitividade e projeto social. O clube atua em diferentes frentes:
-                equipes de <strong>FUT 7</strong>, <strong>Campo</strong> e <strong>Futsal</strong>,
-                categorias de base e escolinha infantil, sempre representando as cores preto e
-                laranja com orgulho.
-              </p>
-              <p className="text-base md:text-lg text-neutral-100 leading-relaxed mt-3">
-                Dentro e fora de campo, o Westham trabalha para formar atletas, torcedores e
-                cidadãos, criando um ambiente de comunidade forte, comprometida com o esporte e
-                com a cidade.
-              </p>
-            </Card>
-
-            <Card className="bg-neutral-900 border border-orange-500/60">
-              <h2 className="text-2xl md:text-3xl font-extrabold text-orange-300 mb-4">
-                O que é a Sociedade de Sócios?
-              </h2>
-              <p className="text-base md:text-lg text-neutral-100 leading-relaxed">
-                A sociedade de sócios é o coração do clube. Quem se torna sócio(a) ajuda a manter
-                o Westham forte e ganha <strong>benefícios exclusivos</strong>:
-              </p>
-              <ul className="list-disc list-inside text-base text-neutral-100 mt-3 space-y-1">
-                <li>Descontos na loja oficial do clube;</li>
-                <li>Acesso a estatísticas avançadas dos jogadores e elencos;</li>
-                <li>Carteirinha digital de sócio ativo;</li>
-                <li>Conteúdo e notícias internas do clube.</li>
-              </ul>
-            </Card>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-8">
-            <Card className="bg-neutral-900 border border-neutral-800">
-              <h3 className="text-xl md:text-2xl font-extrabold text-orange-300 mb-3">História do Clube</h3>
-              <p className="text-base md:text-lg text-neutral-100 leading-relaxed">
-                A história do Westham é construída em cada partida, título, treino e projeto
-                social. Nesta área, o administrador poderá publicar a linha do tempo oficial do
-                clube, conquistas, fotos históricas, troféus e grandes momentos das equipes.
-              </p>
-              <p className="text-xs text-neutral-400 mt-3">
-                (O painel do admin permite editar este conteúdo: texto, fotos e destaques da
-                história.)
-              </p>
-            </Card>
-
-            <Card className="bg-neutral-900 border border-neutral-800">
-              <h3 className="text-xl md:text-2xl font-extrabold text-orange-300 mb-3">
-                Projetos &amp; Escolinha Infantil
-              </h3>
-              <p className="text-base md:text-lg text-neutral-100 leading-relaxed">
-                O campo de projetos reúne iniciativas como a <strong>escolinha infantil</strong> e
-                outros programas do clube. O admin poderá cadastrar cada projeto com descrição,
-                fotos, período, categorias envolvidas e status (ativo, inscrições abertas, etc.).
-              </p>
-            </Card>
-          </div>
-        </section>
-
-        {/* News Section */}
-        <section className="max-w-7xl mx-auto px-6 pb-16">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold text-orange-300 flex items-center gap-2">
-              <span>📰 Últimas Notícias do Clube</span>
+        {/* Feed de notícias (principal) */}
+        <section className="max-w-7xl mx-auto px-6 py-12">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl md:text-3xl font-bold text-orange-300">
+              📰 Últimas Notícias
             </h2>
             <Link
-              href="/noticias"
+              href={user ? '/dashboard/noticias' : '/noticias'}
               className="text-sm font-semibold text-orange-300 hover:text-orange-200 underline"
             >
-              Ver todas as notícias →
+              Ver mais →
             </Link>
           </div>
 
-          {loadingNews && (
-            <p className="text-neutral-400 text-sm mb-4">Carregando notícias...</p>
-          )}
+          {loadingNews && <p className="text-neutral-400 text-sm mb-4">Carregando notícias...</p>}
 
           {!loadingNews && newsList.length === 0 && (
             <Card className="bg-neutral-900 border border-neutral-800 text-neutral-200">
-              Assim que o admin publicar notícias pelo painel, as últimas 3 aparecerão aqui.
+              Assim que o admin publicar notícias, elas aparecerão aqui.
             </Card>
           )}
 
-          <div className="grid md:grid-cols-3 gap-6">
-            {newsList.map((news) => (
-              <Card
-                key={news.id}
-                className="hover:shadow-xl transition bg-neutral-900 border border-neutral-800"
-              >
-                <div className="mb-3">
-                  <span className="inline-block bg-orange-500/20 text-orange-300 px-3 py-1 rounded-full text-xs font-semibold">
-                    {news.categoria}
-                  </span>
-                </div>
-                <h3 className="text-xl font-bold text-neutral-50 mb-2">
-                  {news.titulo}
-                </h3>
-                <p className="text-neutral-400 text-sm mb-4">
-                  {news.data_criacao
-                    ? new Date(news.data_criacao).toLocaleDateString('pt-BR')
-                    : ''}
-                </p>
-                <p className="text-neutral-200 mb-4 line-clamp-4">{news.conteudo}</p>
-              </Card>
-            ))}
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {newsList.map((news) => {
+              const modalidadeLabel = news.modalidade === 'fut7' ? 'FUT 7' : news.modalidade === 'futsal' ? 'Futsal' : news.modalidade === 'campo' ? 'Campo' : null;
+              return (
+                <Card
+                  key={news.id}
+                  className="hover:shadow-xl transition bg-neutral-900 border border-neutral-800"
+                >
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    <span className="inline-block bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded text-xs font-semibold">
+                      {news.categoria}
+                    </span>
+                    {modalidadeLabel && (
+                      <span className="inline-block bg-neutral-700 text-neutral-200 px-2 py-0.5 rounded text-xs font-semibold">
+                        {modalidadeLabel}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-lg font-bold text-neutral-50 mb-1">{news.titulo}</h3>
+                  <p className="text-neutral-400 text-xs mb-2">
+                    {news.data_criacao ? new Date(news.data_criacao).toLocaleDateString('pt-BR') : ''}
+                  </p>
+                  <p className="text-neutral-200 text-sm line-clamp-3">{news.conteudo}</p>
+                </Card>
+              );
+            })}
           </div>
         </section>
 
-        {/* Players Section */}
-        <section className="bg-neutral-900 py-16 px-6 border-t border-neutral-800">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-3xl font-bold text-orange-300">
-                ⚽ Destaques do Elenco
-              </h2>
-              {!showAllPlayers && playersList.length > 3 && (
-                <button
-                  onClick={() => setShowAllPlayers(true)}
-                  className="text-orange-400 font-semibold hover:text-orange-300 underline"
-                >
-                  Ver Todos →
-                </button>
-              )}
-              {showAllPlayers && playersList.length > 3 && (
-                <button
-                  onClick={() => setShowAllPlayers(false)}
-                  className="text-orange-400 font-semibold hover:text-orange-300 underline"
-                >
-                  Ver Menos ←
-                </button>
-              )}
-            </div>
-            {loadingPlayers && (
-              <p className="text-neutral-400 text-sm mb-4">Carregando elenco...</p>
-            )}
-            {!loadingPlayers && playersList.length === 0 && (
-              <Card className="bg-neutral-950 border border-neutral-800 text-neutral-300">
-                Ainda não há jogadores cadastrados. O admin pode adicioná-los no painel.
-              </Card>
-            )}
-            {!loadingPlayers && playersList.length > 0 && (
-            <div className="grid md:grid-cols-4 gap-6">
-              {displayedPlayers.map((player) => (
-                <Card
-                  key={player.id}
-                  className="bg-neutral-950 border border-neutral-800 hover:border-orange-500/60"
-                >
-                  <div className="mb-4 pb-4 border-b-2 border-red-100">
-                    <div className="w-full h-40 bg-gradient-to-br from-black via-neutral-900 to-orange-500/40 rounded-lg flex items-center justify-center mb-4">
-                      <span className="text-6xl font-bold text-orange-400 opacity-20">
-                        {player.numero}
-                      </span>
+        {/* 4 produtos em destaque */}
+        <section className="max-w-7xl mx-auto px-6 py-10">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl md:text-3xl font-bold text-orange-300">
+              🛍️ Destaques da Loja
+            </h2>
+            <Link
+              href={user ? '/dashboard/loja' : '/loja'}
+              className="text-sm font-semibold text-orange-300 hover:text-orange-200 underline"
+            >
+              Ver loja →
+            </Link>
+          </div>
+          {loadingProducts && <p className="text-neutral-400 text-sm">Carregando...</p>}
+          {!loadingProducts && featuredProducts.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {featuredProducts.map((p: any) => (
+                <Link key={p.id} href={user ? '/dashboard/loja' : '/loja'}>
+                  <Card className="h-full bg-neutral-900 border border-neutral-800 hover:border-orange-500/60 transition overflow-hidden">
+                    <div className="aspect-square bg-neutral-800 mb-2 overflow-hidden">
+                      <img
+                        src={p.imagem_url || 'https://via.placeholder.com/200?text=Produto'}
+                        alt={p.nome}
+                        className="w-full h-full object-cover"
+                        onError={(e: any) => { e.currentTarget.src = 'https://via.placeholder.com/200?text=Sem+Imagem'; }}
+                      />
                     </div>
-                  </div>
-                  <h3 className="text-lg font-bold text-neutral-50 mb-1">
-                    {player.nome}
-                  </h3>
-                  <p className="text-orange-300 font-semibold text-sm mb-3">
-                    {player.posicao} #{player.numero}
-                  </p>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-neutral-400">Gols:</span>
-                      <span className="font-bold text-orange-400">{player.gols}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-neutral-400">Nível:</span>
-                      <span className="font-bold text-orange-400">
-                        {player.nivel != null ? `${player.nivel}/10` : '—'}
-                      </span>
-                    </div>
-                  </div>
-                </Card>
+                    <p className="font-semibold text-neutral-100 text-sm line-clamp-2">{p.nome}</p>
+                    <p className="text-orange-400 font-bold">R$ {Number(p.preco).toFixed(2)}</p>
+                  </Card>
+                </Link>
               ))}
             </div>
-            )}
-          </div>
+          )}
+          {!loadingProducts && featuredProducts.length === 0 && (
+            <p className="text-neutral-500 text-sm">Nenhum produto em destaque. O admin pode marcar produtos como destaque na loja.</p>
+          )}
         </section>
 
-        {/* Stats Section */}
-        <section className="max-w-7xl mx-auto px-6 py-16">
-          <h2 className="text-3xl font-bold mb-8 text-orange-300 text-center">
-            📊 Estatísticas
-          </h2>
-          <div className="grid md:grid-cols-4 gap-6">
-            {[
-              { label: 'Jogadores', value: stats.jogadores, icon: '👥' },
-              { label: 'Gols Marcados', value: stats.gols, icon: '⚽' },
-              { label: 'Vitórias', value: stats.vitorias, icon: '🏆' },
-              { label: 'Anos de Tradição', value: 25, icon: '📅' },
-            ].map((stat, i) => (
-              <Card
-                key={i}
-                className="text-center bg-neutral-900 border border-neutral-800 hover:border-orange-500/60"
-              >
-                <div className="text-4xl mb-4">{stat.icon}</div>
-                <div className="text-4xl font-bold bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent mb-2">
-                  {stat.value}
-                </div>
-                <div className="text-neutral-300 font-semibold">{stat.label}</div>
-              </Card>
-            ))}
+        {/* Calendário de jogos (mensal) */}
+        <section className="max-w-7xl mx-auto px-6 py-10">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl md:text-3xl font-bold text-orange-300">
+              📅 Próximos jogos
+            </h2>
+            <Link
+              href={user ? '/dashboard/jogos' : '/jogos'}
+              className="text-sm font-semibold text-orange-300 hover:text-orange-200 underline"
+            >
+              Ver todos →
+            </Link>
           </div>
-        </section>
-
-        {/* CTA Section */}
-        {!user && (
-          <section className="bg-gradient-to-r from-black via-neutral-900 to-orange-600 text-white py-16 px-6 mt-16 border-t border-neutral-800">
-            <div className="max-w-4xl mx-auto text-center space-y-4">
-              <h2 className="text-3xl md:text-4xl font-bold mb-2">
-                Faça parte da família Westham
-              </h2>
-              <p className="text-lg text-orange-100 mb-4">
-                Torcedor, atleta, responsável de escolinha ou sócio: esse é o seu portal oficial
-                para viver o clube no dia a dia.
-              </p>
-              <Link href="/signup">
-                <Button
-                  size="lg"
-                  className="bg-white text-orange-600 hover:text-orange-700 text-lg font-bold"
-                >
-                  Junte-se ao Westham Agora
-                </Button>
-              </Link>
+          {loadingMatches && <p className="text-neutral-400 text-sm">Carregando...</p>}
+          {!loadingMatches && monthlyMatches.length === 0 && (
+            <Card className="bg-neutral-900 border border-neutral-800 text-neutral-400 p-6 text-center">
+              Nenhum jogo cadastrado para os próximos meses.
+            </Card>
+          )}
+          {!loadingMatches && monthlyMatches.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-neutral-600 text-neutral-300 text-left">
+                    <th className="py-3 px-3 font-semibold">Modalidade</th>
+                    <th className="py-3 px-3 font-semibold">Data</th>
+                    <th className="py-3 px-3 font-semibold">Horário</th>
+                    <th className="py-3 px-3 font-semibold">Adversário</th>
+                    <th className="py-3 px-3 font-semibold">Local</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyMatches.map((m) => {
+                    const d = new Date(m.data);
+                    return (
+                      <tr key={m.id} className="border-b border-neutral-800 hover:bg-neutral-800/50">
+                        <td className="py-3 px-3">
+                          <span className="px-2 py-0.5 rounded text-xs font-semibold bg-orange-500/20 text-orange-300">
+                            {modalidadeLabel(m.modalidade)}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-neutral-200">
+                          {d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                        </td>
+                        <td className="py-3 px-3 text-neutral-200">
+                          {d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        <td className="py-3 px-3 text-neutral-100">{m.adversario}</td>
+                        <td className="py-3 px-3 text-neutral-400">{m.local || '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          </section>
-        )}
+          )}
+        </section>
+
       </main>
     </>
   );
