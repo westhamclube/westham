@@ -854,7 +854,7 @@ export default function AdminPage() {
                     <Card key={news.id} className="hover:shadow-lg">
                       <div className="mb-2">
                         <p className="font-semibold text-gray-800 mb-1">{news.titulo}</p>
-                        <p className="text-xs text-gray-500">{news.data}</p>
+                        <p className="text-xs text-gray-500">{news.data_criacao}</p>
                       </div>
                       {/* If image present show thumbnail */}
                       {news.imagem_url && (

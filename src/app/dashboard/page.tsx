@@ -43,28 +43,33 @@ export default function DashboardPage() {
         ]);
 
         if (!newsRes.error && newsRes.data) {
-          setFeaturedNews(newsRes.data.map((n: any) => ({
+          setFeaturedNews(newsRes.data.map((n: any): News => ({
             id: n.id,
             titulo: n.titulo,
             conteudo: n.conteudo,
+            autor_id: n.autor_id ?? '',
+            data_criacao: n.created_at ?? n.data_criacao ?? '',
+            data_atualizacao: n.updated_at ?? n.data_atualizacao ?? '',
             categoria: n.categoria,
             modalidade: n.modalidade as NewsModalidade | undefined,
             imagem_url: n.imagem_url,
-            data_criacao: n.created_at,
+            destaque: n.destaque ?? false,
             curtidas: n.curtidas ?? 0,
             usuarios_curtidas: n.usuarios_curtidas ?? [],
             comentarios: [],
           })));
         }
         if (!productsRes.error && productsRes.data) {
-          setFeaturedProducts(productsRes.data.map((p: any) => ({
+          setFeaturedProducts(productsRes.data.map((p: any): Product => ({
             id: p.id,
             nome: p.nome,
-            descricao: p.descricao,
+            descricao: p.descricao ?? '',
             preco: Number(p.preco),
-            imagem_url: p.imagem_url,
-            categoria: p.categoria,
-            estoque: p.estoque,
+            imagem_url: p.imagem_url ?? '',
+            categoria: p.categoria ?? '',
+            estoque: p.estoque ?? 0,
+            data_criacao: p.created_at ?? '',
+            ativo: p.ativo ?? true,
             tem_desconto_socio: p.tem_desconto_socio ?? false,
             desconto_socio: p.desconto_socio ?? undefined,
           })));
@@ -168,6 +173,8 @@ export default function DashboardPage() {
     setCartNotice(`Compra realizada. Total: R$ ${total.toFixed(2)}. Obrigado por comprar no Westham.`);
     setCart([]);
   };
+
+  if (!user) return null;
 
   return (
     <main className="bg-neutral-50 min-h-screen py-12">
