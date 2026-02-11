@@ -8,7 +8,7 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { News, Product, User } from '@/types';
+import type { News, Product, User, NewsModalidade } from '@/types';
 
 // Helpers
 function getYouTubeEmbed(url: string) {
@@ -51,11 +51,13 @@ export default function AdminPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'news' | 'players' | 'lineup' | 'ranks' | 'shop' | 'socio' | 'suporte'>('ranks');
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   
   // News states
   const [newsTitle, setNewsTitle] = useState('');
   const [newsContent, setNewsContent] = useState('');
   const [newsCategory, setNewsCategory] = useState('general');
+  const [newsModalidade, setNewsModalidade] = useState<NewsModalidade>('campo');
   const [newsImage, setNewsImage] = useState('');
   const [newsVideo, setNewsVideo] = useState('');
   const [newsList, setNewsList] = useState<News[]>([]);
@@ -220,6 +222,10 @@ export default function AdminPage() {
     return null;
   }
 
+  const showFeedback = (type: 'success' | 'error', message: string) => {
+    setFeedback({ type, message });
+  };
+
   // News handlers
   const handlePostNews = async () => {
     if (!newsTitle.trim() || !newsContent.trim() || !user) return;
@@ -228,6 +234,7 @@ export default function AdminPage() {
       titulo: newsTitle,
       conteudo: newsContent,
       categoria: newsCategory,
+      modalidade: newsModalidade,
       imagem_url: newsImage || null,
       video_url: newsVideo || null,
       autor_id: user.id,
@@ -236,7 +243,7 @@ export default function AdminPage() {
     if (editingNews) {
       const { error } = await supabase.from('news').update(payload).eq('id', editingNews);
       if (error) {
-        alert(`Erro ao atualizar notícia: ${error.message}`);
+        showFeedback('error', `Erro ao atualizar notícia: ${error.message}`);
         return;
       }
 
@@ -250,7 +257,7 @@ export default function AdminPage() {
             : n,
         ),
       );
-      alert('✅ Notícia atualizada com sucesso!');
+      showFeedback('success', 'Notícia atualizada com sucesso!');
       setEditingNews(null);
     } else {
       const { data, error } = await supabase
@@ -260,7 +267,7 @@ export default function AdminPage() {
         .single();
 
       if (error) {
-        alert(`Erro ao publicar notícia: ${error.message}`);
+        showFeedback('error', `Erro ao publicar notícia: ${error.message}`);
         return;
       }
 
@@ -272,6 +279,7 @@ export default function AdminPage() {
         data_criacao: data.created_at,
         data_atualizacao: data.updated_at,
         categoria: data.categoria,
+        modalidade: data.modalidade as NewsModalidade | undefined,
         imagem_url: data.imagem_url,
         video_url: data.video_url,
         midia_url: data.midia_url,
@@ -282,7 +290,7 @@ export default function AdminPage() {
       };
 
       setNewsList((prev) => [created, ...prev]);
-      alert('✅ Notícia publicada com sucesso!');
+      showFeedback('success', 'Notícia publicada com sucesso!');
     }
 
     setNewsTitle('');
@@ -295,11 +303,11 @@ export default function AdminPage() {
     if (!confirm('Deseja deletar esta notícia?')) return;
     const { error } = await supabase.from('news').delete().eq('id', id);
     if (error) {
-      alert(`Erro ao deletar notícia: ${error.message}`);
+      showFeedback('error', `Erro ao deletar notícia: ${error.message}`);
       return;
     }
     setNewsList((prev) => prev.filter((n) => n.id !== id));
-    alert('✅ Notícia deletada!');
+    showFeedback('success', 'Notícia deletada!');
   };
 
   const handleEditNews = (news: any) => {
@@ -307,6 +315,7 @@ export default function AdminPage() {
     setNewsTitle(news.titulo);
     setNewsContent(news.conteudo);
     setNewsCategory(news.categoria || news.category);
+    setNewsModalidade((news.modalidade || 'campo') as NewsModalidade);
     setNewsImage(news.imagem_url || '');
     setNewsVideo(news.video_url || '');
   };
@@ -326,12 +335,12 @@ export default function AdminPage() {
 
     const { data, error } = await supabase.from('players').insert(payload).select('*').single();
     if (error) {
-      alert(`Erro ao adicionar jogador: ${error.message}`);
+      showFeedback('error', `Erro ao adicionar jogador: ${error.message}`);
       return;
     }
 
     setPlayersList((prev) => [...prev, data]);
-    alert('✅ Jogador adicionado!');
+    showFeedback('success', 'Jogador adicionado!');
     setPlayerName('');
     setPlayerNumber('');
     setPlayerPosition('');
@@ -342,11 +351,11 @@ export default function AdminPage() {
     if (!confirm('Deseja deletar este jogador?')) return;
     const { error } = await supabase.from('players').delete().eq('id', id);
     if (error) {
-      alert(`Erro ao deletar jogador: ${error.message}`);
+      showFeedback('error', `Erro ao deletar jogador: ${error.message}`);
       return;
     }
     setPlayersList((prev) => prev.filter((p) => p.id !== id));
-    alert('✅ Jogador deletado!');
+    showFeedback('success', 'Jogador deletado!');
   };
 
   const handleUpdatePlayerGoals = async (id: string, goals: number) => {
@@ -358,14 +367,14 @@ export default function AdminPage() {
   const handlePromoteRank = async (id: string, newRole: string) => {
     const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', id);
     if (error) {
-      alert(`Erro ao atualizar usuário: ${error.message}`);
+      showFeedback('error', `Erro ao atualizar usuário: ${error.message}`);
       return;
     }
 
     setRankRequests((prev) =>
       prev.map((r) => (r.id === id ? { ...r, role: newRole as any } : r)),
     );
-    alert(`✅ Usuário atualizado para ${newRole}!`);
+    showFeedback('success', `Usuário atualizado para ${newRole}!`);
   };
 
   // Shop handlers
@@ -393,7 +402,7 @@ export default function AdminPage() {
           .update(payload)
           .eq('id', editingProduct);
         if (error) {
-          alert(`Erro ao atualizar produto: ${error.message}`);
+          showFeedback('error', `Erro ao atualizar produto: ${error.message}`);
           return;
         }
 
@@ -407,7 +416,7 @@ export default function AdminPage() {
               : p,
           ),
         );
-        alert('✅ Produto atualizado com sucesso!');
+        showFeedback('success', 'Produto atualizado com sucesso!');
         setEditingProduct(null);
       } else {
         const { data, error } = await supabase
@@ -417,7 +426,7 @@ export default function AdminPage() {
           .single();
 
         if (error) {
-          alert(`Erro ao adicionar produto: ${error.message}`);
+          showFeedback('error', `Erro ao adicionar produto: ${error.message}`);
           return;
         }
 
@@ -438,7 +447,7 @@ export default function AdminPage() {
         };
 
         setProductsList((prev) => [...prev, created]);
-        alert('✅ Produto adicionado com sucesso!');
+        showFeedback('success', 'Produto adicionado com sucesso!');
       }
       setProductName('');
       setProductDescription('');
@@ -453,7 +462,7 @@ export default function AdminPage() {
       setTemDescontoSocio(false);
       setDescontoSocio('');
     } else {
-      alert('⚠️ Preencha todos os campos!');
+      showFeedback('error', 'Preencha todos os campos obrigatórios do produto.');
     }
   };
 
@@ -461,11 +470,11 @@ export default function AdminPage() {
     if (!confirm('Deseja deletar este produto?')) return;
     const { error } = await supabase.from('store_products').delete().eq('id', id);
     if (error) {
-      alert(`Erro ao deletar produto: ${error.message}`);
+      showFeedback('error', `Erro ao deletar produto: ${error.message}`);
       return;
     }
     setProductsList((prev) => prev.filter((p) => p.id !== id));
-    alert('✅ Produto deletado!');
+    showFeedback('success', 'Produto deletado!');
   };
 
   const handleEditProduct = (product: any) => {
@@ -487,6 +496,17 @@ export default function AdminPage() {
       <Header />
       <main className="bg-neutral-950 min-h-screen py-12">
         <div className="max-w-7xl mx-auto px-6">
+          {feedback && (
+            <div
+              className={`mb-6 px-4 py-3 rounded-lg text-sm font-medium ${
+                feedback.type === 'success'
+                  ? 'bg-emerald-900/30 border border-emerald-500/60 text-emerald-200'
+                  : 'bg-red-900/30 border border-red-500/60 text-red-200'
+              }`}
+            >
+              {feedback.message}
+            </div>
+          )}
           {/* Header */}
           <Card className="mb-8 bg-gradient-to-r from-black via-neutral-900 to-orange-600 text-white shadow-2xl border border-orange-500/60">
             <div className="flex items-center justify-between">
@@ -706,18 +726,33 @@ export default function AdminPage() {
                     onChange={(e) => setNewsTitle(e.target.value)}
                   />
 
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm font-semibold text-gray-700">Categoria</label>
-                    <select
-                      value={newsCategory}
-                      onChange={(e) => setNewsCategory(e.target.value)}
-                      className="px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-600 focus:outline-none"
-                    >
-                      <option value="general">Geral</option>
-                      <option value="match">Partida</option>
-                      <option value="player">Jogador</option>
-                      <option value="academy">Academia</option>
-                    </select>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-sm font-semibold text-gray-700">Categoria</label>
+                      <select
+                        value={newsCategory}
+                        onChange={(e) => setNewsCategory(e.target.value)}
+                        className="px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-600 focus:outline-none"
+                      >
+                        <option value="general">Geral</option>
+                        <option value="match">Partida</option>
+                        <option value="player">Jogador</option>
+                        <option value="academy">Academia</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <label className="text-sm font-semibold text-gray-700">Modalidade</label>
+                      <select
+                        value={newsModalidade}
+                        onChange={(e) => setNewsModalidade(e.target.value as NewsModalidade)}
+                        className="px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-600 focus:outline-none"
+                      >
+                        <option value="campo">Campo</option>
+                        <option value="futsal">Futsal</option>
+                        <option value="fut7">FUT7</option>
+                      </select>
+                    </div>
                   </div>
 
                   <Input

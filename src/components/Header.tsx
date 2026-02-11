@@ -47,6 +47,14 @@ export function Header() {
             Notícias
           </Link>
           {user && (
+            <Link
+              href="/dashboard/socios"
+              className="px-2 py-1 rounded hover:text-orange-300 hover:bg-white/5 transition"
+            >
+              Sócios
+            </Link>
+          )}
+          {user && (
             <>
               <Link
                 href="/dashboard/perfil"
@@ -77,8 +85,24 @@ export function Header() {
                 <span className="font-semibold truncate max-w-[120px]">
                   {user.nome || user.email}
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-orange-500/20 border border-orange-400/40">
-                  {user.role}
+                <span
+                  className={`px-2 py-0.5 rounded-full border text-[11px] font-semibold ${
+                    user.role === 'sócio'
+                      ? 'bg-emerald-500/10 border-emerald-400 text-emerald-200'
+                      : user.role === 'jogador'
+                      ? 'bg-sky-500/10 border-sky-400 text-sky-200'
+                      : user.role === 'admin'
+                      ? 'bg-purple-500/10 border-purple-400 text-purple-200'
+                      : 'bg-neutral-700/40 border-neutral-400/60 text-neutral-100'
+                  }`}
+                >
+                  {user.role === 'sócio'
+                    ? 'Sócio'
+                    : user.role === 'jogador'
+                    ? 'Jogador'
+                    : user.role === 'admin'
+                    ? 'Admin'
+                    : 'Membro'}
                 </span>
               </div>
               <Button size="sm" variant="secondary" onClick={handleLogout}>

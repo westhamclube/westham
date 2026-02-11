@@ -108,11 +108,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const session = data.session;
-      if (!session) {
+      const authUser = data.user;
+      if (!session || !authUser) {
         throw new Error('Sessão não encontrada. Tente novamente.');
       }
 
-      // A sessão listener cuidará de popular o user
+      // Popular rapidamente o usuário no app para reduzir tempo de espera no dashboard
+      const quickUser: User = {
+        id: authUser.id,
+        email: authUser.email || '',
+        nome: (authUser.user_metadata?.nome as string) || '',
+        sobrenome: (authUser.user_metadata?.sobrenome as string) || '',
+        role: (authUser.user_metadata?.role as any) || 'usuário',
+        data_cadastro: authUser.created_at,
+        cpf: (authUser.user_metadata?.cpf as string) || '',
+        telefone: (authUser.user_metadata?.telefone as string) || '',
+        avatar_url: authUser.user_metadata?.avatar_url as string | undefined,
+        instagram_url: undefined,
+        facebook_url: undefined,
+        tiktok_url: undefined,
+      };
+
+      setUser(quickUser);
+
+      // Atualiza em background com os dados completos do perfil (profiles)
+      loadUserFromSupabase().catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('[Auth] Erro ao atualizar perfil após login:', err);
+      });
     } catch (error: any) {
       const msg = typeof error.message === 'string' && error.message
         ? translateAuthError(error.message)

@@ -48,6 +48,8 @@ export interface NewsComment {
   usuarios_curtidas?: string[]; // IDs de usuários que curtiram
 }
 
+export type NewsModalidade = 'campo' | 'futsal' | 'fut7';
+
 // Interface de notícia
 export interface News {
   id: string;
@@ -118,6 +120,7 @@ export interface Match {
   gols_adversario?: number;
   tipo: 'amistoso' | 'campeonato';
   descricao?: string;
+  modalidade?: NewsModalidade;
 }
 
 // Interface de rank/aprovação

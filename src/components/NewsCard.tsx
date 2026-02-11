@@ -29,6 +29,14 @@ export function NewsCard({ news, onUpdate, onDelete, onEdit }: NewsCardProps) {
   const [newComment, setNewComment] = useState('');
   const [localNews, setLocalNews] = useState(news);
 
+  const modalidadeLabel = (() => {
+    const m = (localNews.modalidade || '').toLowerCase();
+    if (m === 'fut7') return 'FUT7';
+    if (m === 'futsal') return 'Futsal';
+    if (m === 'campo') return 'Campo';
+    return null;
+  })();
+
   const handleLikeNews = () => {
     if (!user || user.role !== 'sócio') return;
     
@@ -100,7 +108,12 @@ export function NewsCard({ news, onUpdate, onDelete, onEdit }: NewsCardProps) {
 
   return (
     <Card className="hover:shadow-lg transition">
-      <div className="mb-3">
+      <div className="mb-3 flex items-center gap-2">
+        {modalidadeLabel && (
+          <span className="inline-block bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-semibold">
+            {modalidadeLabel}
+          </span>
+        )}
         <span className="inline-block bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-semibold">
           {localNews.category || localNews.categoria}
         </span>

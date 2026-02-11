@@ -24,8 +24,8 @@
 
     try {
       await login(email, password);
-      window.location.href = '/dashboard';
-      return;
+      // Navegação cliente-side mais rápida e sem recarregar a página inteira
+      router.replace('/dashboard');
     } catch (err: any) {
       setError(err.message || 'E-mail ou senha incorretos. Tente novamente.');
     } finally {

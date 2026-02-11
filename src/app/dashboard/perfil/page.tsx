@@ -27,6 +27,8 @@ export default function PerfilPage() {
   const [saving, setSaving] = useState(false);
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [playerStats, setPlayerStats] = useState<any | null>(null);
+  const [loadingPlayerStats, setLoadingPlayerStats] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -38,6 +40,32 @@ export default function PerfilPage() {
       setFacebookUrl((user as any).facebook_url || '');
       setTiktokUrl((user as any).tiktok_url || '');
     }
+  }, [user]);
+
+  // Carregar estatísticas do jogador (se a conta for de jogador)
+  useEffect(() => {
+    if (!user || user.role !== 'jogador') return;
+
+    const load = async () => {
+      setLoadingPlayerStats(true);
+      try {
+        const { data, error } = await supabase
+          .from('players')
+          .select('id, nome, numero, posicao, idade, gols, assists, nivel')
+          .eq('nome', user.nome)
+          .maybeSingle();
+
+        if (!error && data) {
+          setPlayerStats(data);
+        } else {
+          setPlayerStats(null);
+        }
+      } finally {
+        setLoadingPlayerStats(false);
+      }
+    };
+
+    load();
   }, [user]);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -148,11 +176,52 @@ export default function PerfilPage() {
           </div>
         )}
 
+        {/* Selo do membro */}
+        <Card className="p-4 border border-neutral-200 bg-white">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-neutral-500">
+                Tipo de conta
+              </p>
+              <p className="font-bold text-neutral-900">
+                {user.role === 'sócio'
+                  ? 'Sócio do clube'
+                  : user.role === 'jogador'
+                  ? 'Jogador do elenco'
+                  : user.role === 'admin'
+                  ? 'Administrador'
+                  : 'Membro cadastrado'}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                  user.role === 'sócio'
+                    ? 'bg-emerald-500/10 border-emerald-400 text-emerald-700'
+                    : user.role === 'jogador'
+                    ? 'bg-sky-500/10 border-sky-400 text-sky-700'
+                    : user.role === 'admin'
+                    ? 'bg-purple-500/10 border-purple-400 text-purple-700'
+                    : 'bg-neutral-100 border-neutral-300 text-neutral-700'
+                }`}
+              >
+                {user.role === 'sócio'
+                  ? 'Selo: Sócio'
+                  : user.role === 'jogador'
+                  ? 'Selo: Jogador'
+                  : user.role === 'admin'
+                  ? 'Selo: Admin'
+                  : 'Selo: Membro'}
+              </span>
+            </div>
+          </div>
+        </Card>
+
         {/* Carteirinha de sócio */}
         {user.role === 'sócio' && (
           <Card className="p-6 border-2 border-orange-500/50 bg-gradient-to-br from-orange-50 to-neutral-50">
             <h2 className="font-bold text-lg text-neutral-900 mb-4">Carteirinha de sócio</h2>
-            <div className="flex items-center gap-6 p-4 bg-white rounded-xl border border-neutral-200">
+            <div className="flex flex-col sm:flex-row items-center gap-6 p-4 bg-white rounded-xl border border-neutral-200">
               <div className="w-20 h-20 rounded-full overflow-hidden bg-neutral-200 flex items-center justify-center flex-shrink-0">
                 {user.avatar_url ? (
                   <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
@@ -162,14 +231,75 @@ export default function PerfilPage() {
                   </span>
                 )}
               </div>
-              <div>
-                <p className="font-bold text-neutral-900">{user.nome} {user.sobrenome}</p>
+              <div className="text-center sm:text-left">
+                <p className="font-bold text-neutral-900">
+                  {user.nome} {user.sobrenome}
+                </p>
                 <p className="text-sm text-neutral-500">{user.email}</p>
-                <span className="inline-block mt-2 px-3 py-1 rounded-full bg-orange-500/20 text-orange-700 text-xs font-semibold">
-                  Sócio ativo
-                </span>
+                <div className="mt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs">
+                  <span className="inline-block px-3 py-1 rounded-full bg-orange-500/20 text-orange-700 font-semibold">
+                    Carteira de Sócio
+                  </span>
+                  <span className="inline-block px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-700 font-semibold">
+                    Status: Ativo (definido pelo admin)
+                  </span>
+                </div>
               </div>
             </div>
+          </Card>
+        )}
+
+        {/* Estatísticas do jogador */}
+        {user.role === 'jogador' && (
+          <Card className="p-6 bg-white border border-neutral-200">
+            <h2 className="font-bold text-lg text-neutral-900 mb-4">Painel do jogador</h2>
+            {loadingPlayerStats ? (
+              <p className="text-sm text-neutral-500">Carregando estatísticas...</p>
+            ) : !playerStats ? (
+              <p className="text-sm text-neutral-500">
+                Ainda não encontramos um registro de jogador vinculado ao seu nome.
+                Peça para o admin configurar suas estatísticas na área de elenco.
+              </p>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-wide text-neutral-500">Nome</p>
+                  <p className="font-semibold text-neutral-900">{playerStats.nome}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-wide text-neutral-500">Número</p>
+                  <p className="font-semibold text-neutral-900">{playerStats.numero}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-wide text-neutral-500">Posição</p>
+                  <p className="font-semibold text-neutral-900">{playerStats.posicao}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-wide text-neutral-500">Idade</p>
+                  <p className="font-semibold text-neutral-900">
+                    {playerStats.idade ? `${playerStats.idade} anos` : '—'}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-wide text-neutral-500">Gols marcados</p>
+                  <p className="font-semibold text-neutral-900">
+                    {Number(playerStats.gols) || 0}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-wide text-neutral-500">Assistências</p>
+                  <p className="font-semibold text-neutral-900">
+                    {Number(playerStats.assists) || 0}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs uppercase tracking-wide text-neutral-500">Nível</p>
+                  <p className="font-semibold text-neutral-900">
+                    {playerStats.nivel ? `${playerStats.nivel}/10` : '—'}
+                  </p>
+                </div>
+              </div>
+            )}
           </Card>
         )}
 

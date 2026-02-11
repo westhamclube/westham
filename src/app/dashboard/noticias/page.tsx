@@ -10,6 +10,7 @@ import type { News } from '@/types';
 export default function DashboardNoticiasPage() {
   const [news, setNews] = useState<News[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterModalidade, setFilterModalidade] = useState<'todas' | 'campo' | 'futsal' | 'fut7'>('todas');
 
   useEffect(() => {
     const load = async () => {
@@ -28,6 +29,7 @@ export default function DashboardNoticiasPage() {
             data_criacao: n.created_at,
             data_atualizacao: n.updated_at,
             categoria: n.categoria,
+            modalidade: n.modalidade,
             imagem_url: n.imagem_url,
             video_url: n.video_url,
             midia_url: n.midia_url,
@@ -43,6 +45,11 @@ export default function DashboardNoticiasPage() {
 
     load();
   }, []);
+
+  const filteredNews =
+    filterModalidade === 'todas'
+      ? news
+      : news.filter((n) => (n as any).modalidade === filterModalidade);
 
   return (
     <main className="bg-neutral-950 min-h-screen py-10">
@@ -63,18 +70,32 @@ export default function DashboardNoticiasPage() {
           </p>
         </div>
 
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-neutral-300 text-sm">Filtrar por modalidade:</p>
+          <select
+            value={filterModalidade}
+            onChange={(e) => setFilterModalidade(e.target.value as any)}
+            className="px-4 py-2 rounded-lg bg-neutral-900 border border-neutral-700 text-neutral-100 text-sm"
+          >
+            <option value="todas">Todas</option>
+            <option value="campo">Campo</option>
+            <option value="futsal">Futsal</option>
+            <option value="fut7">FUT7</option>
+          </select>
+        </div>
+
         {loading && (
           <p className="text-neutral-400 text-sm">Carregando notícias...</p>
         )}
 
-        {!loading && news.length === 0 && (
+        {!loading && filteredNews.length === 0 && (
           <Card className="bg-neutral-900 border border-neutral-800 text-neutral-200">
             Ainda não há notícias cadastradas. Assim que o admin publicar, elas aparecerão aqui.
           </Card>
         )}
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {news.map((n) => (
+          {filteredNews.map((n) => (
             <NewsCard
               key={n.id}
               news={{

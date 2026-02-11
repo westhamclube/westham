@@ -7,7 +7,7 @@ import { Button } from '@/components/Button';
 import { NewsCard } from '@/components/NewsCard';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { News, Product } from '@/types';
+import type { News, Product, Match, NewsModalidade } from '@/types';
 import { SITE_SOCIAL, LIVE_STREAM_EMBED } from '@/lib/site-config';
 
 interface Project {
@@ -22,11 +22,16 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'home' | 'shop'>('home');
   const [cart, setCart] = useState<any[]>([]);
+  const [cartNotice, setCartNotice] = useState<string | null>(null);
   const [featuredNews, setFeaturedNews] = useState<News[]>([]);
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [featuredProjects, setFeaturedProjects] = useState<Project[]>([]);
   const [loadingFeatured, setLoadingFeatured] = useState(true);
   const [showLive, setShowLive] = useState(false);
+  const [upcomingMatches, setUpcomingMatches] = useState<Match[]>([]);
+  const [loadingMatches, setLoadingMatches] = useState(true);
+  const [featuredPlayers, setFeaturedPlayers] = useState<any[]>([]);
+  const [loadingPlayers, setLoadingPlayers] = useState(true);
 
   useEffect(() => {
     async function loadFeatured() {
@@ -43,6 +48,7 @@ export default function DashboardPage() {
             titulo: n.titulo,
             conteudo: n.conteudo,
             categoria: n.categoria,
+            modalidade: n.modalidade as NewsModalidade | undefined,
             imagem_url: n.imagem_url,
             data_criacao: n.created_at,
             curtidas: n.curtidas ?? 0,
@@ -78,14 +84,62 @@ export default function DashboardPage() {
     loadFeatured();
   }, []);
 
-  const mockProducts = [
-    { id: '1', nome: 'Camiseta Vermelha', descricao: 'Camiseta oficial de jogo', preco: 89.90, imagem_url: 'https://via.placeholder.com/200?text=Camiseta', categoria: 'camiseta', estoque: 50 },
-    { id: '2', nome: 'Boné Westham', descricao: 'Boné com logo do time', preco: 39.90, imagem_url: 'https://via.placeholder.com/200?text=Bone', categoria: 'acessório', estoque: 100 },
-    { id: '3', nome: 'Meião Oficial', descricao: 'Meião com símbolo do time', preco: 24.90, imagem_url: 'https://via.placeholder.com/200?text=Meiao', categoria: 'acessório', estoque: 75 },
-    { id: '4', nome: 'Chaveiro', descricao: 'Chaveiro em formato de escudo', preco: 14.90, imagem_url: 'https://via.placeholder.com/200?text=Chaveiro', categoria: 'acessório', estoque: 200 },
-    { id: '5', nome: 'Caneca do Time', descricao: 'Caneca com impressão do logo', preco: 29.90, imagem_url: 'https://via.placeholder.com/200?text=Caneca', categoria: 'acessório', estoque: 80 },
-    { id: '6', nome: 'Mochila Westham', descricao: 'Mochila esportiva do time', preco: 119.90, imagem_url: 'https://via.placeholder.com/200?text=Mochila', categoria: 'acessório', estoque: 30 },
-  ];
+  useEffect(() => {
+    async function loadUpcomingMatches() {
+      try {
+        const { data, error } = await supabase
+          .from('matches')
+          .select('*')
+          .gte('data', new Date().toISOString())
+          .order('data', { ascending: true })
+          .limit(5);
+
+        if (!error && data) {
+          setUpcomingMatches(
+            data.map((m: any) => ({
+              id: m.id,
+              data: m.data,
+              adversario: m.adversario,
+              local: m.local,
+              resultado: m.resultado,
+              gols_westham: m.gols_westham,
+              gols_adversario: m.gols_adversario,
+              tipo: m.tipo,
+              descricao: m.descricao,
+              modalidade: (m.modalidade || 'campo') as NewsModalidade,
+            })),
+          );
+        }
+      } finally {
+        setLoadingMatches(false);
+      }
+    }
+
+    loadUpcomingMatches();
+  }, []);
+
+  // Destaque de jogadores (3 principais) para o dashboard
+  useEffect(() => {
+    async function loadFeaturedPlayers() {
+      try {
+        const { data, error } = await supabase
+          .from('players')
+          .select('id, nome, numero, posicao, gols, nivel, foto_url')
+          .order('gols', { ascending: false })
+          .limit(3);
+
+        if (!error && data) {
+          setFeaturedPlayers(data);
+        } else {
+          setFeaturedPlayers([]);
+        }
+      } finally {
+        setLoadingPlayers(false);
+      }
+    }
+
+    loadFeaturedPlayers();
+  }, []);
 
   const handleAddToCart = (product: any) => {
     const existingItem = cart.find(item => item.id === product.id);
@@ -98,7 +152,7 @@ export default function DashboardPage() {
     } else {
       setCart([...cart, { ...product, quantidade: 1 }]);
     }
-    alert(`${product.nome} adicionado ao carrinho.`);
+    setCartNotice(`${product.nome} adicionado ao carrinho.`);
   };
 
   const handleRemoveFromCart = (productId: string) => {
@@ -107,11 +161,11 @@ export default function DashboardPage() {
 
   const handleCheckout = () => {
     if (cart.length === 0) {
-      alert('Seu carrinho está vazio.');
+      setCartNotice('Seu carrinho está vazio.');
       return;
     }
     const total = cart.reduce((acc, item) => acc + (item.preco * item.quantidade), 0);
-    alert(`Compra realizada. Total: R$ ${total.toFixed(2)}\n\nObrigado por comprar no Westham.`);
+    setCartNotice(`Compra realizada. Total: R$ ${total.toFixed(2)}. Obrigado por comprar no Westham.`);
     setCart([]);
   };
 
@@ -197,7 +251,10 @@ export default function DashboardPage() {
                       {loadingFeatured ? (
                         <p className="text-neutral-500 text-sm">Carregando...</p>
                       ) : featuredProducts.length === 0 ? (
-                        <Card className="p-6 text-neutral-500 text-sm">Nenhum produto ainda.</Card>
+                        <Card className="p-6 text-neutral-500 text-sm">
+                          Nenhum produto ainda. Assim que o administrador cadastrar itens na Loja
+                          Oficial, os destaques aparecerão aqui.
+                        </Card>
                       ) : (
                         <div className="grid sm:grid-cols-2 gap-4">
                           {featuredProducts.map((p) => {
@@ -220,6 +277,63 @@ export default function DashboardPage() {
                               </Link>
                             );
                           })}
+                        </div>
+                      )}
+                    </section>
+
+                    <section>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-bold text-neutral-800">Destaques do elenco</h2>
+                        <Link
+                          href="/dashboard/jogadores"
+                          className="text-sm font-medium text-orange-600 hover:text-orange-500"
+                        >
+                          Ver todos os jogadores →
+                        </Link>
+                      </div>
+                      {loadingPlayers ? (
+                        <p className="text-neutral-500 text-sm">Carregando elenco...</p>
+                      ) : featuredPlayers.length === 0 ? (
+                        <Card className="p-6 text-neutral-500 text-sm">
+                          Nenhum jogador cadastrado ainda. O administrador pode montar o elenco
+                          pelo painel.
+                        </Card>
+                      ) : (
+                        <div className="grid sm:grid-cols-3 gap-4">
+                          {featuredPlayers.map((player) => (
+                            <Card
+                              key={player.id}
+                              className="p-4 text-center hover:border-orange-500/50 transition flex flex-col items-center"
+                            >
+                              <div className="w-16 h-16 rounded-full bg-neutral-200 overflow-hidden mb-2 flex items-center justify-center">
+                                {player.foto_url ? (
+                                  <img
+                                    src={player.foto_url}
+                                    alt={player.nome}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="text-2xl font-bold text-neutral-500">
+                                    {player.nome?.[0]?.toUpperCase()}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="font-semibold text-neutral-900">{player.nome}</p>
+                              <p className="text-xs text-neutral-500 mb-1">
+                                #{player.numero} • {player.posicao}
+                              </p>
+                              <p className="text-xs text-neutral-600 mb-2">
+                                Gols: <span className="font-semibold">{player.gols ?? 0}</span> •
+                                Nível: <span className="font-semibold">{player.nivel ?? 5}/10</span>
+                              </p>
+                              <Link
+                                href={`/dashboard/jogadores/${player.id}`}
+                                className="mt-auto inline-flex text-xs font-semibold text-orange-600 hover:text-orange-500"
+                              >
+                                Ver perfil
+                              </Link>
+                            </Card>
+                          ))}
                         </div>
                       )}
                     </section>
@@ -253,9 +367,57 @@ export default function DashboardPage() {
                         </div>
                       )}
                     </section>
+
+                    <section>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-bold text-neutral-800">Próximos jogos</h2>
+                        <Link href="/dashboard/jogos" className="text-sm font-medium text-orange-600 hover:text-orange-500">
+                          Ver todos os jogos →
+                        </Link>
+                      </div>
+                      {loadingMatches ? (
+                        <p className="text-neutral-500 text-sm">Carregando partidas...</p>
+                      ) : upcomingMatches.length === 0 ? (
+                        <Card className="p-6 text-neutral-500 text-sm">Nenhum jogo futuro cadastrado.</Card>
+                      ) : (
+                        <div className="space-y-3">
+                          {upcomingMatches.map((m) => {
+                            const dataFormatada = m.data
+                              ? new Date(m.data).toLocaleString('pt-BR', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : '';
+                            const modalidadeLabel =
+                              m.modalidade === 'futsal'
+                                ? 'Futsal'
+                                : m.modalidade === 'fut7'
+                                ? 'FUT7'
+                                : 'Campo';
+                            return (
+                              <Card key={m.id} className="flex items-center justify-between p-4">
+                                <div>
+                                  <p className="text-sm font-semibold text-neutral-800">
+                                    {modalidadeLabel} vs {m.adversario}
+                                  </p>
+                                  <p className="text-xs text-neutral-500">
+                                    {dataFormatada} • {m.local}
+                                  </p>
+                                </div>
+                                <span className="text-xs px-3 py-1 rounded-full bg-neutral-900 text-neutral-50 font-semibold">
+                                  {m.tipo === 'campeonato' ? 'Campeonato' : 'Amistoso'}
+                                </span>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </section>
                   </div>
 
-                  {/* Sidebar: explicação sócio, redes sociais, Assista ao vivo */}
+              {/* Sidebar: explicação sócio, contato e redes sociais, Assista ao vivo */}
                   <div className="space-y-6">
                     <Card className="border-2 border-orange-500/40 bg-gradient-to-br from-orange-50 to-neutral-50 p-6">
                       <h3 className="font-bold text-neutral-900 mb-3">Torne-se sócio do Westham</h3>
@@ -267,6 +429,21 @@ export default function DashboardPage() {
                       </p>
                       <Link href="/virar-socio">
                         <Button size="md" className="w-full">Saiba como virar sócio</Button>
+                      </Link>
+                    </Card>
+
+                    <Card className="p-6">
+                      <h3 className="font-bold text-neutral-800 mb-2">
+                        Quer ingressar no nosso time ou marcar um amistoso?
+                      </h3>
+                      <p className="text-neutral-600 text-sm mb-3">
+                        Preencha um formulário rápido e a equipe do Sport Club Westham retornará
+                        pelo seu e-mail ou telefone o mais breve possível.
+                      </p>
+                      <Link href="/dashboard/contato-time">
+                        <Button size="md" className="w-full">
+                          Entrar em contato com o clube
+                        </Button>
                       </Link>
                     </Card>
 
@@ -357,63 +534,25 @@ export default function DashboardPage() {
           {/* SHOP TAB */}
           {activeTab === 'shop' && (
             <div className="grid lg:grid-cols-4 gap-8">
-              {/* Products Grid */}
+              {/* Products Grid (sem itens mockados) */}
               <div className="lg:col-span-3">
-                <h2 className="text-2xl font-bold mb-6 text-neutral-800">Loja Oficial Westham</h2>
-                <div className="grid md:grid-cols-2 gap-6 mb-8">
-                  {mockProducts.map((product) => (
-                    <Card key={product.id} className="hover:shadow-2xl transition overflow-hidden">
-                      {/* Product Image */}
-                      <div className="w-full h-48 bg-gray-100 flex items-center justify-center mb-4 overflow-hidden rounded-lg">
-                        <img 
-                          src={product.imagem_url} 
-                          alt={product.nome}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.currentTarget.src = 'https://via.placeholder.com/200?text=Sem+Imagem';
-                          }}
-                        />
-                      </div>
-
-                      {/* Product Info */}
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="text-lg font-bold text-gray-800">{product.nome}</h3>
-                        <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-semibold">
-                          {product.categoria}
-                        </span>
-                      </div>
-
-                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">{product.descricao}</p>
-
-                      <div className="flex justify-between items-center mb-4">
-                        <div className="text-2xl font-bold text-red-600">
-                          R$ {product.preco.toFixed(2)}
-                        </div>
-                        <div className={`text-sm font-semibold px-3 py-1 rounded ${
-                          product.estoque > 0 
-                            ? 'bg-green-100 text-green-700' 
-                            : 'bg-red-100 text-red-700'
-                        }`}>
-                          {product.estoque > 0 ? `Em estoque (${product.estoque})` : 'Indisponível'}
-                        </div>
-                      </div>
-
-                      <Button 
-                        onClick={() => handleAddToCart(product)}
-                        disabled={product.estoque === 0}
-                        className="w-full"
-                      >
-                        {product.estoque > 0 ? 'Adicionar ao Carrinho' : 'Fora de Estoque'}
-                      </Button>
-                    </Card>
-                  ))}
-                </div>
+                <h2 className="text-2xl font-bold mb-4 text-neutral-800">Loja Oficial Westham</h2>
+                <Card className="p-6 text-neutral-600 text-sm">
+                  A experiência completa de compra ficará disponível aqui em breve. Enquanto isso,
+                  acesse a aba <strong>Loja Oficial</strong> no menu para ver os produtos cadastrados
+                  pelo administrador.
+                </Card>
               </div>
 
               {/* Shopping Cart Sidebar */}
               <div>
                 <h2 className="text-2xl font-bold mb-6 text-neutral-800">Carrinho</h2>
                 <Card className="shadow-2xl sticky top-20">
+                  {cartNotice && (
+                    <div className="mb-4 p-3 rounded-lg text-sm border bg-emerald-50 text-emerald-800 border-emerald-200">
+                      {cartNotice}
+                    </div>
+                  )}
                   {cart.length === 0 ? (
                     <div className="text-center py-8">
                       <p className="text-neutral-500 text-sm">Seu carrinho está vazio</p>

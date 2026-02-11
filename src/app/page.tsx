@@ -8,7 +8,7 @@ import { Button } from '@/components/Button';
 import { useAuth } from '@/context/AuthContext';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { News } from '@/types';
+import type { News, NewsModalidade } from '@/types';
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -18,6 +18,8 @@ export default function HomePage() {
   const [loadingPlayers, setLoadingPlayers] = useState(true);
   const [stats, setStats] = useState({ jogadores: 0, gols: 0, vitorias: 0 });
   const [showAllPlayers, setShowAllPlayers] = useState(false);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any | null>(null);
 
   useEffect(() => {
     const loadNews = async () => {
@@ -37,6 +39,7 @@ export default function HomePage() {
             data_criacao: n.created_at,
             data_atualizacao: n.updated_at,
             categoria: n.categoria,
+            modalidade: n.modalidade as NewsModalidade | undefined,
             imagem_url: n.imagem_url,
             video_url: n.video_url,
             midia_url: n.midia_url,
@@ -86,6 +89,50 @@ export default function HomePage() {
     loadPlayersAndStats();
   }, []);
 
+  // Banner para incentivar instalação como "app" (PWA)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const alreadyDismissed = window.localStorage.getItem('westham_install_banner_dismissed');
+    if (!alreadyDismissed) {
+      setShowInstallBanner(true);
+    }
+
+    const handler = (e: any) => {
+      // Impede o prompt automático e guarda para usar quando o usuário clicar
+      e.preventDefault();
+      setDeferredPrompt(e);
+      if (!alreadyDismissed) {
+        setShowInstallBanner(true);
+      }
+    };
+
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) {
+      // Sem evento capturado, apenas garante que o usuário veja as instruções da seção hero
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      window.localStorage.setItem('westham_install_banner_dismissed', '1');
+      setShowInstallBanner(false);
+    }
+    setDeferredPrompt(null);
+  };
+
+  const handleDismissBanner = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('westham_install_banner_dismissed', '1');
+    }
+    setShowInstallBanner(false);
+  };
+
   const top3Players = playersList.slice(0, 3);
   const displayedPlayers = showAllPlayers ? playersList : top3Players;
 
@@ -93,6 +140,36 @@ export default function HomePage() {
     <>
       <Header />
       <main className="bg-neutral-950 min-h-screen">
+        {showInstallBanner && (
+          <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white text-sm md:text-base">
+            <div className="max-w-7xl mx-auto px-6 py-3 flex flex-col md:flex-row items-center gap-2 md:gap-4 justify-between">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-black/30 border border-white/30 text-lg">
+                  📱
+                </span>
+                <p className="font-medium text-left">
+                  Instale o portal do <strong>Sport Club Westham</strong> na tela inicial do seu
+                  celular para usar como aplicativo.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 self-stretch md:self-auto">
+                <Button
+                  size="sm"
+                  className="bg-black/80 hover:bg-black text-white border border-white/40"
+                  onClick={handleInstallClick}
+                >
+                  Adicionar à tela inicial
+                </Button>
+                <button
+                  onClick={handleDismissBanner}
+                  className="text-xs uppercase tracking-wide hover:text-black/80"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Hero Section */}
         <section className="relative bg-gradient-to-r from-black via-neutral-900 to-orange-600 text-white py-20 px-6 overflow-hidden">
           <div className="absolute inset-0 opacity-10">
@@ -128,7 +205,7 @@ export default function HomePage() {
                   A casa oficial do Westham na web
                 </h1>
                 <p className="text-lg md:text-xl mb-6 text-orange-100/90">
-                  FUT SET, Campo/Futsal, escolinha infantil, área do sócio e loja oficial em um só
+                  FUT 7, Campo e Futsal, escolinha infantil, área do sócio e loja oficial em um só
                   lugar. Estatísticas, notícias, cronograma de jogos e projetos sociais do clube.
                 </p>
 
@@ -212,9 +289,9 @@ export default function HomePage() {
               <p className="text-base md:text-lg text-neutral-100 leading-relaxed">
                 O <strong>Sport Club Westham</strong> é um clube de futebol de Guaíba que une
                 tradição, competitividade e projeto social. O clube atua em diferentes frentes:
-                equipes de <strong>FUT SET</strong>, <strong>Campo/Futsal</strong>, categorias de
-                base e escolinha infantil, sempre representando as cores preto e laranja com
-                orgulho.
+                equipes de <strong>FUT 7</strong>, <strong>Campo</strong> e <strong>Futsal</strong>,
+                categorias de base e escolinha infantil, sempre representando as cores preto e
+                laranja com orgulho.
               </p>
               <p className="text-base md:text-lg text-neutral-100 leading-relaxed mt-3">
                 Dentro e fora de campo, o Westham trabalha para formar atletas, torcedores e

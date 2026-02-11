@@ -14,9 +14,13 @@ export function Input({ label, error, className, ...props }: InputProps) {
       <input
         className={clsx(
           'px-4 py-3 border-2 rounded-lg focus:outline-none transition',
+          // Fundo e texto bem contrastantes para qualquer tema
+          'bg-white text-neutral-900 placeholder:text-neutral-400',
+          // Borda/focus padrão
           'border-gray-300 focus:border-red-600 focus:ring-2 focus:ring-red-200',
+          // Estado de erro
           error && 'border-red-500 focus:border-red-500',
-          className
+          className,
         )}
         {...props}
       />
