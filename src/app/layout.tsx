@@ -26,8 +26,8 @@ export const metadata: Metadata = {
   description: defaultDescription,
   metadataBase: new URL(siteUrl),
   icons: {
-    icon: [{ url: '/logoswest/transparente.png', type: 'image/png' }],
-    apple: [{ url: '/logoswest/ESCUDO PNG.png', type: 'image/png' }],
+    icon: [{ url: '/logoswest/black.png', type: 'image/png' }],
+    apple: [{ url: '/logoswest/black.png', type: 'image/png' }],
   },
   openGraph: {
     type: 'website',
@@ -64,7 +64,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="Westham Club" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <link rel="apple-touch-icon" href="/logoswest/ESCUDO PNG.png" />
+        <link rel="apple-touch-icon" href="/logoswest/black.png" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-neutral-950 text-neutral-50`}

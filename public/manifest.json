@@ -8,19 +8,19 @@
   "description": "App oficial do Sport Club Westham - jogos, notícias, projetos, loja e área do sócio.",
   "icons": [
     {
-      "src": "/logoswest/ESCUDO PNG.png",
+      "src": "/logoswest/black.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/logoswest/ESCUDO PNG.png",
+      "src": "/logoswest/black.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/logoswest/ESCUDO PNG.png",
+      "src": "/logoswest/black.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
