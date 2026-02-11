@@ -18,7 +18,13 @@ export const metadata: Metadata = {
   title: 'Sport Club Westham',
   description:
     'App oficial do Sport Club Westham - Notícias, Escalações, Sociedade de Sócios e Projetos do Clube',
-  metadataBase: new URL('https://erxvpgaedqslzxhhhwjy.supabase.co'), // ajuste para o domínio real do site quando publicar
+  metadataBase: new URL('https://westham.vercel.app'),
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 export default function RootLayout({

@@ -20,6 +20,7 @@ export default function HomePage() {
   const [showAllPlayers, setShowAllPlayers] = useState(false);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any | null>(null);
+  const [showInstallInstructions, setShowInstallInstructions] = useState(false);
 
   useEffect(() => {
     const loadNews = async () => {
@@ -112,18 +113,18 @@ export default function HomePage() {
   }, []);
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) {
-      // Sem evento capturado, apenas garante que o usuário veja as instruções da seção hero
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        window.localStorage.setItem('westham_install_banner_dismissed', '1');
+        setShowInstallBanner(false);
+      }
+      setDeferredPrompt(null);
       return;
     }
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      window.localStorage.setItem('westham_install_banner_dismissed', '1');
-      setShowInstallBanner(false);
-    }
-    setDeferredPrompt(null);
+    // iOS ou navegador sem beforeinstallprompt: mostrar instruções manuais
+    setShowInstallInstructions(true);
   };
 
   const handleDismissBanner = () => {
@@ -170,6 +171,43 @@ export default function HomePage() {
             </div>
           </div>
         )}
+
+        {/* Modal: instruções para adicionar à tela inicial (iOS / quando não há prompt) */}
+        {showInstallInstructions && (
+          <>
+            <div className="fixed inset-0 z-50 bg-black/60" aria-hidden="true" onClick={() => setShowInstallInstructions(false)} />
+            <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-md bg-neutral-900 border border-neutral-600 rounded-2xl shadow-2xl p-6 text-white">
+              <div className="flex justify-between items-start gap-4 mb-4">
+                <h3 className="text-lg font-bold text-orange-400">Adicionar à tela inicial</h3>
+                <button type="button" aria-label="Fechar" className="p-1 rounded hover:bg-white/10" onClick={() => setShowInstallInstructions(false)}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <p className="text-sm text-neutral-300 mb-4">Siga os passos conforme seu celular:</p>
+              <div className="space-y-4 text-sm">
+                <div className="bg-neutral-800 rounded-xl p-4">
+                  <p className="font-semibold text-white mb-2">📱 iPhone (Safari)</p>
+                  <ol className="list-decimal list-inside text-neutral-300 space-y-1">
+                    <li>Toque no botão <strong>Compartilhar</strong> (quadrado com seta para cima), na barra do Safari.</li>
+                    <li>Role e toque em <strong>Adicionar à Tela de Início</strong>.</li>
+                    <li>Toque em <strong>Adicionar</strong> no canto superior direito.</li>
+                  </ol>
+                </div>
+                <div className="bg-neutral-800 rounded-xl p-4">
+                  <p className="font-semibold text-white mb-2">🤖 Android (Chrome)</p>
+                  <ol className="list-decimal list-inside text-neutral-300 space-y-1">
+                    <li>Toque no menu <strong>⋮</strong> (três pontos), no canto superior direito.</li>
+                    <li>Toque em <strong>Adicionar à tela inicial</strong> ou <strong>Instalar app</strong>.</li>
+                  </ol>
+                </div>
+              </div>
+              <Button className="w-full mt-4 bg-orange-600 hover:bg-orange-500" onClick={() => setShowInstallInstructions(false)}>
+                Entendi
+              </Button>
+            </div>
+          </>
+        )}
+
         {/* Hero Section */}
         <section className="relative bg-gradient-to-r from-black via-neutral-900 to-orange-600 text-white py-20 px-6 overflow-hidden">
           <div className="absolute inset-0 opacity-10">
