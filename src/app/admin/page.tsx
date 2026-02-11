@@ -248,11 +248,17 @@ export default function AdminPage() {
       }
 
       setNewsList((prev) =>
-        prev.map((n) =>
+        prev.map((n): News =>
           n.id === editingNews
             ? {
                 ...n,
-                ...payload,
+                titulo: payload.titulo,
+                conteudo: payload.conteudo,
+                categoria: payload.categoria,
+                modalidade: payload.modalidade,
+                imagem_url: payload.imagem_url ?? undefined,
+                video_url: payload.video_url ?? undefined,
+                autor_id: payload.autor_id,
               }
             : n,
         ),
