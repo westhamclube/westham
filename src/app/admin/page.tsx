@@ -296,8 +296,8 @@ export default function AdminPage() {
                 conteudo: payload.conteudo as string,
                 categoria: payload.categoria as News['categoria'],
                 modalidade: payload.modalidade as NewsModalidade | undefined,
-                imagem_url: payload.imagem_url ?? undefined,
-                video_url: payload.video_url ?? undefined,
+                imagem_url: (payload.imagem_url as string | null) ?? undefined,
+                video_url: (payload.video_url as string | null) ?? undefined,
                 link_externo: (payload.link_externo as string | null) ?? undefined,
                 autor_id: payload.autor_id as string,
               }
