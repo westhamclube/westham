@@ -12,3 +12,40 @@ export const SITE_SOCIAL = {
 
 /** URL embed para transmissão ao vivo. Use NEXT_PUBLIC_LIVE_STREAM_URL quando houver vídeo ao vivo. */
 export const LIVE_STREAM_EMBED = process.env.NEXT_PUBLIC_LIVE_STREAM_URL || '';
+
+/** Telefone do dono do site para pedidos da loja (WhatsApp). Formato: 5551981889351 */
+export const WHATSAPP_OWNER_PHONE = '5551981889351';
+
+export function whatsAppOrderUrl(message: string): string {
+  return `https://wa.me/${WHATSAPP_OWNER_PHONE}?text=${encodeURIComponent(message)}`;
+}
+
+/** Mensagem para comprar um único produto (nome, descrição, valor). */
+export function buildSingleProductMessage(nome: string, descricao: string, valor: string): string {
+  return `Olá! Gostaria de comprar o seguinte produto do Westham:
+
+*${nome}*
+${descricao}
+
+*Valor:* R$ ${valor}
+
+Quero personalizar/confirmar este pedido pelo WhatsApp.`;
+}
+
+/** Mensagem com todos os itens do carrinho (lista 1 a 1 e total). */
+export function buildCartMessage(
+  items: { nome: string; quantidade: number; precoUnit: number; precoTotal: number }[]
+): string {
+  const lines = items.map(
+    (item, i) =>
+      `${i + 1}. ${item.nome} - ${item.quantidade}x R$ ${item.precoUnit.toFixed(2)} = R$ ${item.precoTotal.toFixed(2)}`
+  );
+  const total = items.reduce((acc, item) => acc + item.precoTotal, 0);
+  return `Olá! Gostaria de comprar os seguintes produtos do Westham:
+
+${lines.join('\n')}
+
+*Total: R$ ${total.toFixed(2)}*
+
+Quero personalizar/confirmar meu pedido pelo WhatsApp.`;
+}

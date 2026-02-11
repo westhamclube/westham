@@ -8,7 +8,7 @@ import { NewsCard } from '@/components/NewsCard';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { News, Product, Match, NewsModalidade } from '@/types';
-import { SITE_SOCIAL, LIVE_STREAM_EMBED } from '@/lib/site-config';
+import { SITE_SOCIAL, LIVE_STREAM_EMBED, whatsAppOrderUrl, buildCartMessage } from '@/lib/site-config';
 
 interface Project {
   id: string;
@@ -164,13 +164,33 @@ export default function DashboardPage() {
     setCart(cart.filter(item => item.id !== productId));
   };
 
+  const getCartItemFinalPrice = (item: { preco: number; quantidade: number; tem_desconto_socio?: boolean; desconto_socio?: number }) => {
+    const hasSocioDiscount = user?.role === 'sócio' && item.tem_desconto_socio && item.desconto_socio;
+    const unit = hasSocioDiscount && item.desconto_socio
+      ? item.preco * (1 - item.desconto_socio / 100)
+      : item.preco;
+    return unit * item.quantidade;
+  };
+
   const handleCheckout = () => {
     if (cart.length === 0) {
       setCartNotice('Seu carrinho está vazio.');
       return;
     }
-    const total = cart.reduce((acc, item) => acc + (item.preco * item.quantidade), 0);
-    setCartNotice(`Compra realizada. Total: R$ ${total.toFixed(2)}. Obrigado por comprar no Westham.`);
+    const items = cart.map((item) => {
+      const hasSocioDiscount = user?.role === 'sócio' && item.tem_desconto_socio && item.desconto_socio;
+      const precoUnit = hasSocioDiscount && item.desconto_socio
+        ? item.preco * (1 - item.desconto_socio / 100)
+        : item.preco;
+      return {
+        nome: item.nome,
+        quantidade: item.quantidade,
+        precoUnit,
+        precoTotal: precoUnit * item.quantidade,
+      };
+    });
+    window.open(whatsAppOrderUrl(buildCartMessage(items)), '_blank');
+    setCartNotice('Pedido enviado para o WhatsApp. O dono do site retornará em breve.');
     setCart([]);
   };
 
@@ -580,10 +600,13 @@ export default function DashboardPage() {
                             </div>
                             <div className="flex justify-between items-center text-sm">
                               <span className="text-gray-600">
-                                {item.quantidade}x R$ {item.preco.toFixed(2)}
+                                {item.quantidade}x R$ {(user?.role === 'sócio' && item.tem_desconto_socio && item.desconto_socio
+                                  ? item.preco * (1 - (item.desconto_socio ?? 0) / 100)
+                                  : item.preco
+                                ).toFixed(2)}
                               </span>
                               <span className="font-bold text-red-600">
-                                R$ {(item.preco * item.quantidade).toFixed(2)}
+                                R$ {getCartItemFinalPrice(item).toFixed(2)}
                               </span>
                             </div>
                           </div>
@@ -594,7 +617,7 @@ export default function DashboardPage() {
                         <div className="flex justify-between mb-4">
                           <span className="text-lg font-bold">Total:</span>
                           <span className="text-2xl font-bold text-red-600">
-                            R$ {cart.reduce((acc, item) => acc + (item.preco * item.quantidade), 0).toFixed(2)}
+                            R$ {cart.reduce((acc, item) => acc + getCartItemFinalPrice(item), 0).toFixed(2)}
                           </span>
                         </div>
                         <Button 
@@ -602,7 +625,7 @@ export default function DashboardPage() {
                           size="lg"
                           className="w-full"
                         >
-                          Finalizar compra
+                          Enviar pedido por WhatsApp
                         </Button>
                       </div>
                     </>

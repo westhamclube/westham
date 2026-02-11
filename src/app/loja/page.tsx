@@ -7,11 +7,15 @@ import { Button } from '@/components/Button';
 import { supabase } from '@/lib/supabase';
 import type { Product } from '@/types';
 import { useAuth } from '@/context/AuthContext';
+import { whatsAppOrderUrl, buildSingleProductMessage, buildCartMessage } from '@/lib/site-config';
+
+type CartItem = Product & { quantidade: number };
 
 export default function LojaPage() {
   const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cart, setCart] = useState<CartItem[]>([]);
 
   useEffect(() => {
     const load = async () => {
@@ -46,6 +50,48 @@ export default function LojaPage() {
     load();
   }, []);
 
+  const getFinalPrice = (product: Product) => {
+    const hasSocioDiscount =
+      user?.role === 'sócio' && product.tem_desconto_socio && product.desconto_socio;
+    return hasSocioDiscount && product.desconto_socio
+      ? product.preco * (1 - product.desconto_socio / 100)
+      : product.preco;
+  };
+
+  const handleComprar = (product: Product) => {
+    const finalPrice = getFinalPrice(product);
+    const msg = buildSingleProductMessage(
+      product.nome,
+      product.descricao ?? '',
+      finalPrice.toFixed(2)
+    );
+    window.open(whatsAppOrderUrl(msg), '_blank');
+  };
+
+  const handleAddToCart = (product: Product) => {
+    const existing = cart.find((i) => i.id === product.id);
+    if (existing) {
+      setCart(cart.map((i) => (i.id === product.id ? { ...i, quantidade: i.quantidade + 1 } : i)));
+    } else {
+      setCart([...cart, { ...product, quantidade: 1 }]);
+    }
+  };
+
+  const handleRemoveFromCart = (id: string) => {
+    setCart(cart.filter((i) => i.id !== id));
+  };
+
+  const handleEnviarPedidoWhatsApp = () => {
+    if (cart.length === 0) return;
+    const items = cart.map((item) => ({
+      nome: item.nome,
+      quantidade: item.quantidade,
+      precoUnit: getFinalPrice(item),
+      precoTotal: getFinalPrice(item) * item.quantidade,
+    }));
+    window.open(whatsAppOrderUrl(buildCartMessage(items)), '_blank');
+  };
+
   return (
     <>
       <Header />
@@ -61,6 +107,14 @@ export default function LojaPage() {
                 {user?.role === 'sócio' && ' Você é sócio: veja os produtos com desconto especial ⭐.'}
               </p>
             </div>
+            {cart.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-neutral-400 text-sm">Carrinho ({cart.length} itens)</span>
+                <Button size="sm" variant="secondary" onClick={handleEnviarPedidoWhatsApp}>
+                  Enviar pedido por WhatsApp
+                </Button>
+              </div>
+            )}
           </div>
 
           {loading && <p className="text-neutral-400 text-sm">Carregando produtos...</p>}
@@ -139,17 +193,66 @@ export default function LojaPage() {
                     </div>
                   </div>
 
-                  <Button
-                    size="md"
-                    className="w-full"
-                    disabled={product.estoque === 0}
-                  >
-                    {product.estoque > 0 ? '🛒 Adicionar ao Carrinho (em breve)' : '❌ Fora de Estoque'}
-                  </Button>
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      size="md"
+                      className="w-full bg-emerald-600 hover:bg-emerald-500"
+                      disabled={product.estoque === 0}
+                      onClick={() => handleComprar(product)}
+                    >
+                      {product.estoque > 0 ? 'Comprar (WhatsApp)' : 'Fora de Estoque'}
+                    </Button>
+                    <Button
+                      size="md"
+                      variant="secondary"
+                      className="w-full"
+                      disabled={product.estoque === 0}
+                      onClick={() => handleAddToCart(product)}
+                    >
+                      {product.estoque > 0 ? 'Adicionar ao carrinho' : 'Fora de Estoque'}
+                    </Button>
+                  </div>
                 </Card>
               );
             })}
           </div>
+
+          {cart.length > 0 && (
+            <Card className="bg-neutral-900 border border-neutral-700 p-6">
+              <h2 className="text-xl font-bold text-neutral-100 mb-4">Seu carrinho</h2>
+              <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
+                {cart.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex justify-between items-center py-2 border-b border-neutral-700 last:border-0"
+                  >
+                    <div>
+                      <p className="font-medium text-neutral-200">{item.nome}</p>
+                      <p className="text-sm text-neutral-400">
+                        {item.quantidade}x R$ {getFinalPrice(item).toFixed(2)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFromCart(item.id)}
+                      className="text-red-400 hover:text-red-300 text-sm"
+                    >
+                      Remover
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <p className="text-lg font-bold text-orange-400 mb-4">
+                Total: R${' '}
+                {cart
+                  .reduce((acc, i) => acc + getFinalPrice(i) * i.quantidade, 0)
+                  .toFixed(2)}
+              </p>
+              <Button className="w-full" onClick={handleEnviarPedidoWhatsApp}>
+                Enviar pedido por WhatsApp
+              </Button>
+            </Card>
+          )}
         </div>
       </main>
     </>
