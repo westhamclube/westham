@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Header } from '@/components/Header';
 import Link from 'next/link';
 import { Card } from '@/components/Card';
+import { LineupField } from '@/components/LineupField';
 import type { Match, NewsModalidade } from '@/types';
 import { supabase } from '@/lib/supabase';
 
@@ -28,7 +29,7 @@ export default function JogosModalidadePage() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [news, setNews] = useState<any[]>([]);
   const [players, setPlayers] = useState<any[]>([]);
-  const [stats, setStats] = useState({ jogadores: 0, gols: 0, vitorias: 0 });
+  const [modalidadeStats, setModalidadeStats] = useState<{ ultimo_resultado: string | null; gols_total: number; vitorias: number; derrotas: number } | null>(null);
   const [lineup, setLineup] = useState<{
     id: string;
     formacao: string;
@@ -37,10 +38,12 @@ export default function JogosModalidadePage() {
     lineup_players?: Array<{
       posicao: string;
       numero_camisa: number;
+      posicao_label?: string;
       titular: boolean;
-      players: { nome: string; numero_camisa: number } | null;
+      player_id: string;
     }>;
   } | null>(null);
+  const [allPlayersMap, setAllPlayersMap] = useState<Record<string, { nome: string; numero: number }>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,9 +51,9 @@ export default function JogosModalidadePage() {
       const [
         { data: matchesData },
         { data: newsData },
-        { data: playersData },
-        { data: matchesForStats },
+        { data: allPlayersData },
         { data: lineupData },
+        { data: statsData },
       ] = await Promise.all([
         supabase
           .from('matches')
@@ -59,33 +62,36 @@ export default function JogosModalidadePage() {
           .or(`modalidade.eq.${modalidade},modalidade.is.null`)
           .order('data', { ascending: true })
           .limit(10),
-        supabase
-          .from('news')
-          .select('id, titulo, created_at')
-          .eq('modalidade', modalidade)
-          .order('created_at', { ascending: false })
-          .limit(3),
-        supabase
-          .from('players')
-          .select('id, nome, numero, posicao, gols, foto_url')
-          .eq(modalidade === 'campo' ? 'joga_campo' : modalidade === 'fut7' ? 'joga_fut7' : 'joga_futsal', true)
-          .order('gols', { ascending: false })
-          .limit(10),
-        supabase
-          .from('matches')
-          .select('gols_westham, gols_adversario')
-          .not('gols_westham', 'is', null)
-          .not('gols_adversario', 'is', null)
-          .or(`modalidade.eq.${modalidade},modalidade.is.null`),
         (async () => {
-          const { data } = await supabase
-            .from('lineups')
-            .select('id, formacao, proxima_partida, descricao, modalidade, lineup_players(posicao, numero_camisa, titular, players(nome, numero_camisa))')
-            .order('proxima_partida', { ascending: false })
-            .limit(5);
-          const withModalidade = data?.filter((l: any) => l.modalidade == null || l.modalidade === modalidade);
-          return { data: withModalidade?.[0] ?? null };
+          const { data, error } = await supabase
+            .from('news')
+            .select('id, titulo, conteudo, imagem_url, created_at')
+            .order('destaque', { ascending: false })
+            .order('created_at', { ascending: false })
+            .limit(8);
+          if (error) return { data: [] };
+          return { data: (data || []).slice(0, 4) };
         })(),
+        (async () => {
+          const { data, error } = await supabase.from('players').select('*');
+          if (error) {
+            console.warn('[Jogos] Erro ao buscar jogadores:', error.message);
+            return { data: [] };
+          }
+          return { data: data || [] };
+        })(),
+        (async () => {
+          const { data, error } = await supabase
+            .from('lineups')
+            .select('id, formacao, proxima_partida, descricao, modalidade, lineup_players(posicao, numero_camisa, posicao_label, titular, player_id)')
+            .eq('modalidade', modalidade)
+            .order('proxima_partida', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (error) return { data: null };
+          return { data };
+        })(),
+        supabase.from('modalidade_stats').select('ultimo_resultado, gols_total, vitorias, derrotas').eq('modalidade', modalidade).maybeSingle(),
       ]);
 
       if (matchesData) {
@@ -105,24 +111,35 @@ export default function JogosModalidadePage() {
         );
       }
       if (newsData) setNews(newsData);
-      if (playersData) setPlayers(playersData);
-      if (matchesForStats) {
-        const jogadores = playersData?.length ?? 0;
-        const gols = playersData?.reduce((s, p) => s + (Number(p.gols) || 0), 0) ?? 0;
-        const vitorias =
-          matchesForStats.filter(
-            (m: any) => (Number(m.gols_westham) ?? 0) > (Number(m.gols_adversario) ?? 0)
-          ).length ?? 0;
-        setStats({ jogadores, gols, vitorias });
-      }
+      const jogaKey = modalidade === 'campo' ? 'joga_campo' : modalidade === 'fut7' ? 'joga_fut7' : 'joga_futsal';
+      const filteredPlayers = (allPlayersData || []).filter((p: any) => p[jogaKey] !== false).sort((a: any, b: any) => (Number(b?.gols) || 0) - (Number(a?.gols) || 0));
+      setPlayers(filteredPlayers);
       if (lineupData) setLineup(lineupData as any);
+      if (statsData) {
+        setModalidadeStats({
+          ultimo_resultado: statsData.ultimo_resultado ?? null,
+          gols_total: statsData.gols_total ?? 0,
+          vitorias: statsData.vitorias ?? 0,
+          derrotas: statsData.derrotas ?? 0,
+        });
+      } else {
+        setModalidadeStats({ ultimo_resultado: null, gols_total: 0, vitorias: 0, derrotas: 0 });
+      }
+      const map: Record<string, { nome: string; numero: number }> = {};
+      (allPlayersData || []).forEach((p: any) => {
+        if (p?.id) map[p.id] = { nome: p.nome ?? 'Jogador', numero: p.numero ?? p.numero_camisa ?? 0 };
+      });
+      setAllPlayersMap(map);
       setLoading(false);
     };
 
     load();
   }, [modalidade]);
 
-  const top2Players = players.slice(0, 2);
+  const destaqueKey = modalidade === 'campo' ? 'destaque_campo' : modalidade === 'fut7' ? 'destaque_fut7' : 'destaque_futsal';
+  const destaquesPlayers = players.filter((p: any) =>
+    !!p[destaqueKey] || (!!p.destaque && (p[destaqueKey] === undefined || p[destaqueKey] === null))
+  ).slice(0, 3);
 
   return (
     <main className="bg-neutral-950 min-h-screen py-8 sm:py-10">
@@ -131,23 +148,34 @@ export default function JogosModalidadePage() {
             Jogos — {LABEL[slug] || slug}
           </h1>
 
-          {/* Estatísticas da modalidade */}
+          {/* Estatísticas da modalidade (admin preenche manualmente) */}
           <section>
             <h2 className="text-xl font-bold text-neutral-200 mb-4">Estatísticas</h2>
-            <div className="grid grid-cols-3 gap-4">
-              <Card className="text-center bg-neutral-900 border border-neutral-800 p-4">
-                <div className="text-2xl font-bold text-orange-400">{stats.jogadores}</div>
-                <div className="text-sm text-neutral-400">Jogadores</div>
-              </Card>
-              <Card className="text-center bg-neutral-900 border border-neutral-800 p-4">
-                <div className="text-2xl font-bold text-orange-400">{stats.gols}</div>
-                <div className="text-sm text-neutral-400">Gols</div>
-              </Card>
-              <Card className="text-center bg-neutral-900 border border-neutral-800 p-4">
-                <div className="text-2xl font-bold text-orange-400">{stats.vitorias}</div>
-                <div className="text-sm text-neutral-400">Vitórias</div>
-              </Card>
+            <div className="space-y-4">
+              {modalidadeStats?.ultimo_resultado && (
+                <Card className="p-4 bg-neutral-900 border border-neutral-800">
+                  <div className="text-sm text-neutral-400 mb-1">Último jogo</div>
+                  <div className="text-lg font-bold text-orange-400">{modalidadeStats.ultimo_resultado}</div>
+                </Card>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Card className="text-center bg-neutral-900 border border-neutral-800 p-4">
+                  <div className="text-2xl font-bold text-orange-400">{modalidadeStats?.gols_total ?? 0}</div>
+                  <div className="text-sm text-neutral-400">Gols</div>
+                </Card>
+                <Card className="text-center bg-neutral-900 border border-neutral-800 p-4">
+                  <div className="text-2xl font-bold text-orange-400">{modalidadeStats?.vitorias ?? 0}</div>
+                  <div className="text-sm text-neutral-400">Vitórias</div>
+                </Card>
+                <Card className="text-center bg-neutral-900 border border-neutral-800 p-4">
+                  <div className="text-2xl font-bold text-red-400">{modalidadeStats?.derrotas ?? 0}</div>
+                  <div className="text-sm text-neutral-400">Derrotas</div>
+                </Card>
+              </div>
             </div>
+            {!loading && !modalidadeStats?.ultimo_resultado && !modalidadeStats?.gols_total && !modalidadeStats?.vitorias && !modalidadeStats?.derrotas && (
+              <p className="text-neutral-500 text-sm mt-2">O admin pode preencher as estatísticas no painel (Jogos → Estatísticas por categoria).</p>
+            )}
           </section>
 
           {/* Escalação */}
@@ -159,50 +187,46 @@ export default function JogosModalidadePage() {
               </Card>
             )}
             {lineup && (
-              <Card className="bg-neutral-900 border border-neutral-800 overflow-hidden">
-                <div className="p-4 border-b border-neutral-800">
+              <Card className="bg-neutral-900 border border-neutral-800 overflow-hidden p-4">
+                <div className="mb-4">
                   <p className="font-semibold text-orange-400">Formação {lineup.formacao || '—'}</p>
                   {lineup.proxima_partida && (
                     <p className="text-sm text-neutral-400">
                       Próxima partida: {new Date(lineup.proxima_partida).toLocaleDateString('pt-BR')}
                     </p>
                   )}
-                  {lineup.descricao && <p className="text-sm text-neutral-300 mt-1">{lineup.descricao}</p>}
                 </div>
-                <div className="grid md:grid-cols-2 gap-0">
-                  <div className="p-4">
-                    <p className="text-xs font-semibold text-neutral-500 uppercase mb-2">Titulares</p>
-                    <ul className="space-y-1">
-                      {(lineup.lineup_players || [])
-                        .filter((lp: any) => lp.titular)
-                        .map((lp: any) => (
-                          <li key={lp.posicao + lp.numero_camisa} className="text-neutral-200 text-sm">
-                            <span className="text-orange-400 font-medium">#{lp.numero_camisa}</span>{' '}
-                            {lp.players?.nome ?? 'Jogador'} — {lp.posicao}
-                          </li>
-                        ))}
-                      {(lineup.lineup_players || []).filter((lp: any) => lp.titular).length === 0 && (
-                        <li className="text-neutral-500 text-sm">Nenhum titular cadastrado.</li>
-                      )}
-                    </ul>
-                  </div>
-                  <div className="p-4 border-t md:border-t-0 md:border-l border-neutral-800">
-                    <p className="text-xs font-semibold text-neutral-500 uppercase mb-2">Reservas</p>
-                    <ul className="space-y-1">
-                      {(lineup.lineup_players || [])
-                        .filter((lp: any) => !lp.titular)
-                        .map((lp: any) => (
-                          <li key={lp.posicao + lp.numero_camisa} className="text-neutral-200 text-sm">
-                            <span className="text-orange-400 font-medium">#{lp.numero_camisa}</span>{' '}
-                            {lp.players?.nome ?? 'Jogador'} — {lp.posicao}
-                          </li>
-                        ))}
-                      {(lineup.lineup_players || []).filter((lp: any) => !lp.titular).length === 0 && (
-                        <li className="text-neutral-500 text-sm">Nenhum reserva cadastrado.</li>
-                      )}
-                    </ul>
-                  </div>
-                </div>
+                <LineupField
+                  formacao={lineup.formacao || '4-3-3'}
+                  modalidade={modalidade}
+                  mode="display"
+                  players={[]}
+                  slotPlayers={(() => {
+                    const lp = (lineup.lineup_players || []) as any[];
+                    const map: Record<string, { id: string; nome: string; numero: number }> = {};
+                    lp.forEach((row: any) => {
+                      const p = allPlayersMap[row.player_id];
+                      if (row.posicao && /^slot_\d+$/.test(row.posicao) && row.player_id) {
+                        map[row.posicao] = {
+                          id: row.player_id,
+                          nome: p?.nome ?? 'Jogador',
+                          numero: row.numero_camisa ?? p?.numero ?? 0,
+                        };
+                      }
+                    });
+                    return map;
+                  })()}
+                  slotLabels={(() => {
+                    const lp = (lineup.lineup_players || []) as any[];
+                    const labels: Record<string, string> = {};
+                    lp.forEach((row: any) => {
+                      if (row.posicao && row.posicao_label) {
+                        labels[row.posicao] = row.posicao_label;
+                      }
+                    });
+                    return labels;
+                  })()}
+                />
               </Card>
             )}
           </section>
@@ -236,24 +260,43 @@ export default function JogosModalidadePage() {
             )}
           </section>
 
-          {/* 3 notícias */}
+          {/* 4 últimas notícias */}
           <section>
             <h2 className="text-xl font-bold text-neutral-200 mb-4">Notícias</h2>
             {news.length === 0 && !loading && (
               <p className="text-neutral-500 text-sm">Nenhuma notícia desta modalidade.</p>
             )}
             {news.length > 0 && (
-              <div className="space-y-2">
-                {news.map((n) => (
-                  <Link key={n.id} href="/noticias">
-                    <Card className="p-3 bg-neutral-900 border border-neutral-800 hover:border-orange-500/50 transition">
-                      <p className="font-medium text-neutral-100">{n.titulo}</p>
-                      <p className="text-xs text-neutral-400">
-                        {n.created_at ? new Date(n.created_at).toLocaleDateString('pt-BR') : ''}
-                      </p>
-                    </Card>
-                  </Link>
-                ))}
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                  {news.map((n) => (
+                    <Link key={n.id} href={`/noticias/${n.id}`}>
+                      <Card className="overflow-hidden bg-neutral-900 border border-neutral-800 hover:border-orange-500/50 transition h-full flex flex-col">
+                        {n.imagem_url && (
+                          <div className="aspect-video w-full rounded-t-lg overflow-hidden bg-neutral-800 flex items-center justify-center">
+                            <img
+                              src={n.imagem_url}
+                              alt={n.titulo}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          </div>
+                        )}
+                        <div className="p-3 flex-1 flex flex-col">
+                          <p className="font-medium text-neutral-100 line-clamp-2">{n.titulo}</p>
+                          <p className="text-xs text-neutral-400 mt-1">
+                            {n.created_at ? new Date(n.created_at).toLocaleDateString('pt-BR') : ''}
+                          </p>
+                          {n.conteudo && (
+                            <p className="text-sm text-neutral-300 mt-2 line-clamp-2 flex-1">
+                              {n.conteudo}
+                            </p>
+                          )}
+                        </div>
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
                 <Link href="/noticias" className="text-orange-400 text-sm font-semibold hover:underline">
                   Ver todas as notícias →
                 </Link>
@@ -261,19 +304,38 @@ export default function JogosModalidadePage() {
             )}
           </section>
 
-          {/* 2 jogadores destaque */}
+          {/* Jogadores destaque (máx 3) */}
           <section>
             <h2 className="text-xl font-bold text-neutral-200 mb-4">Destaques</h2>
-            {!loading && top2Players.length === 0 && (
-              <p className="text-neutral-500 text-sm">Nenhum jogador cadastrado para esta modalidade.</p>
+            {!loading && destaquesPlayers.length === 0 && (
+              <p className="text-neutral-500 text-sm">
+                Nenhum jogador em destaque para esta modalidade. O admin pode marcar no painel (Editar Jogador → Marcar como destaque).
+              </p>
             )}
-            {top2Players.length > 0 && (
-              <div className="grid grid-cols-2 gap-4">
-                {top2Players.map((p) => (
-                  <Card key={p.id} className="p-4 bg-neutral-900 border border-neutral-800">
+            {destaquesPlayers.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {destaquesPlayers.map((p) => (
+                  <Card key={p.id} className="p-4 bg-neutral-900 border border-neutral-800 flex flex-col items-center text-center">
+                    {p.foto_url ? (
+                      <div className="w-20 h-20 rounded-full overflow-hidden mb-2 border-2 border-orange-500/50 aspect-square">
+                        <img
+                          src={p.foto_url}
+                          alt={p.nome}
+                          className="w-full h-full object-cover object-center"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-neutral-700 flex items-center justify-center mb-2 text-orange-400 text-2xl font-bold">
+                        {p.nome?.charAt(0) ?? '?'}
+                      </div>
+                    )}
                     <p className="font-semibold text-neutral-100">{p.nome}</p>
-                    <p className="text-sm text-orange-400">#{p.numero} · {p.posicao}</p>
+                    <p className="text-sm text-orange-400">#{p.numero ?? p.numero_camisa ?? '?'} · {p.posicao ?? '—'}</p>
                     <p className="text-xs text-neutral-400">{p.gols ?? 0} gols</p>
+                    <p className="text-xs text-neutral-500 mt-1">
+                      🟨 {p.cartoes_amarelos ?? 0} · 🟥 {p.cartoes_vermelhos ?? 0}
+                    </p>
                   </Card>
                 ))}
               </div>

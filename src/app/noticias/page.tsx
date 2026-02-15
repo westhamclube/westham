@@ -17,6 +17,7 @@ export default function NoticiasPage() {
       const { data, error } = await supabase
         .from('news')
         .select('*')
+        .order('destaque', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (!error && data) {

@@ -20,13 +20,20 @@ export function whatsAppOrderUrl(message: string): string {
   return `https://wa.me/${WHATSAPP_OWNER_PHONE}?text=${encodeURIComponent(message)}`;
 }
 
-/** Mensagem para comprar um único produto (nome, descrição, valor). */
-export function buildSingleProductMessage(nome: string, descricao: string, valor: string): string {
+/** Mensagem para comprar um único produto (nome, descrição, valor). Inclui variações selecionadas se houver. */
+export function buildSingleProductMessage(
+  nome: string,
+  descricao: string,
+  valor: string,
+  variacoes?: Record<string, string>
+): string {
+  const varLines = variacoes && Object.keys(variacoes).length > 0
+    ? '\n' + Object.entries(variacoes).map(([tipo, op]) => `*${tipo}:* ${op}`).join('\n') + '\n'
+    : '';
   return `Olá! Gostaria de comprar o seguinte produto do Westham:
 
 *${nome}*
-${descricao}
-
+${descricao}${varLines}
 *Valor:* R$ ${valor}
 
 Quero personalizar/confirmar este pedido pelo WhatsApp.`;
@@ -34,12 +41,20 @@ Quero personalizar/confirmar este pedido pelo WhatsApp.`;
 
 /** Mensagem com todos os itens do carrinho (lista 1 a 1 e total). */
 export function buildCartMessage(
-  items: { nome: string; quantidade: number; precoUnit: number; precoTotal: number }[]
+  items: {
+    nome: string;
+    quantidade: number;
+    precoUnit: number;
+    precoTotal: number;
+    variacoes?: Record<string, string>;
+  }[]
 ): string {
-  const lines = items.map(
-    (item, i) =>
-      `${i + 1}. ${item.nome} - ${item.quantidade}x R$ ${item.precoUnit.toFixed(2)} = R$ ${item.precoTotal.toFixed(2)}`
-  );
+  const lines = items.map((item, i) => {
+    const varStr = item.variacoes && Object.keys(item.variacoes).length > 0
+      ? ' (' + Object.entries(item.variacoes).map(([k, v]) => `${k}: ${v}`).join(', ') + ')'
+      : '';
+    return `${i + 1}. ${item.nome}${varStr} - ${item.quantidade}x R$ ${item.precoUnit.toFixed(2)} = R$ ${item.precoTotal.toFixed(2)}`;
+  });
   const total = items.reduce((acc, item) => acc + item.precoTotal, 0);
   return `Olá! Gostaria de comprar os seguintes produtos do Westham:
 

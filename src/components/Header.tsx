@@ -4,10 +4,12 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useCashFlowAccess } from '@/hooks/useCashFlowAccess';
 import { Button } from './Button';
 
 export function Header() {
   const { user, logout } = useAuth();
+  const { hasAccess: hasCashFlowAccess } = useCashFlowAccess();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -25,7 +27,7 @@ export function Header() {
         Projetos
       </Link>
       <Link href={user ? '/dashboard/loja' : '/loja'} className="px-2 py-1 rounded hover:text-orange-300 hover:bg-white/5 transition" onClick={() => setMenuOpen(false)}>
-        Loja Oficial
+        Loja
       </Link>
       <Link href={user ? '/dashboard/noticias' : '/noticias'} className="px-2 py-1 rounded hover:text-orange-300 hover:bg-white/5 transition" onClick={() => setMenuOpen(false)}>
         Notícias
@@ -76,6 +78,11 @@ export function Header() {
           {navLinks}
           {user ? (
             <>
+              {hasCashFlowAccess && (
+                <Link href="/caixa" className="px-3 py-1 rounded-full border border-emerald-400/60 text-xs font-semibold hover:bg-emerald-500/20 transition" onClick={() => setMenuOpen(false)}>
+                  💰 Caixa
+                </Link>
+              )}
               {user.role === 'admin' && (
                 <Link href="/admin" className="px-3 py-1 rounded-full border border-orange-400/60 text-xs font-semibold hover:bg-orange-500/20 transition" onClick={() => setMenuOpen(false)}>
                   Painel Admin
@@ -130,6 +137,11 @@ export function Header() {
             </div>
             <div className="flex flex-col p-4 gap-1 [&_a]:block [&_a]:py-3 [&_a]:rounded-lg [&_a]:text-left">
               {navLinks}
+              {hasCashFlowAccess && (
+                <Link href="/caixa" className="px-3 py-2 rounded-lg border border-emerald-400/60 text-sm font-semibold hover:bg-emerald-500/20" onClick={() => setMenuOpen(false)}>
+                  💰 Caixa
+                </Link>
+              )}
               {user?.role === 'admin' && (
                 <Link href="/admin" className="px-3 py-2 rounded-lg border border-orange-400/60 text-sm font-semibold hover:bg-orange-500/20" onClick={() => setMenuOpen(false)}>
                   Painel Admin

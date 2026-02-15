@@ -84,12 +84,12 @@ export default function DashboardSociosPage() {
               key={socio.id}
               className="bg-neutral-900 border border-neutral-800 text-neutral-50 flex items-center gap-4 p-4"
             >
-              <div className="w-14 h-14 rounded-full bg-neutral-800 overflow-hidden flex items-center justify-center flex-shrink-0">
+              <div className="w-14 h-14 rounded-full bg-neutral-800 overflow-hidden flex items-center justify-center flex-shrink-0 aspect-square">
                 {socio.avatar_url ? (
                   <img
                     src={socio.avatar_url}
                     alt={socio.full_name}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover object-center"
                   />
                 ) : (
                   <span className="text-2xl font-bold text-neutral-500">

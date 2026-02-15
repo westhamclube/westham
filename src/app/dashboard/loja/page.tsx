@@ -5,17 +5,18 @@ import Link from 'next/link';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { supabase } from '@/lib/supabase';
-import type { Product } from '@/types';
+import type { Product, ProductVariation } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { whatsAppOrderUrl, buildSingleProductMessage, buildCartMessage } from '@/lib/site-config';
 
-type CartItem = Product & { quantidade: number };
+type CartItem = Product & { quantidade: number; variacoesSelecionadas?: Record<string, string> };
 
 export default function DashboardLojaPage() {
   const { user } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [selectedVariations, setSelectedVariations] = useState<Record<string, Record<string, string>>>({});
 
   useEffect(() => {
     const load = async () => {
@@ -35,6 +36,7 @@ export default function DashboardLojaPage() {
             imagem_url: p.imagem_url,
             imagens: p.imagens ?? [],
             modelos: p.modelos ?? [],
+            variacoes: (p.variacoes && Array.isArray(p.variacoes)) ? p.variacoes : [],
             categoria: p.categoria,
             estoque: p.estoque,
             data_criacao: p.created_at,
@@ -52,33 +54,43 @@ export default function DashboardLojaPage() {
 
   const getFinalPrice = (product: Product) => {
     const hasSocioDiscount =
-      user?.role === 'sócio' && product.tem_desconto_socio && product.desconto_socio;
+      (user?.role === 'sócio' || user?.role === 'jogador') && product.tem_desconto_socio && product.desconto_socio;
     return hasSocioDiscount && product.desconto_socio
       ? product.preco * (1 - product.desconto_socio / 100)
       : product.preco;
   };
 
-  const handleComprar = (product: Product) => {
+  const handleComprar = (product: Product, variacoes?: Record<string, string>) => {
     const finalPrice = getFinalPrice(product);
     const msg = buildSingleProductMessage(
       product.nome,
       product.descricao ?? '',
-      finalPrice.toFixed(2)
+      finalPrice.toFixed(2),
+      variacoes ?? selectedVariations[product.id]
     );
     window.open(whatsAppOrderUrl(msg), '_blank');
   };
 
-  const handleAddToCart = (product: Product) => {
-    const existing = cart.find((i) => i.id === product.id);
+  const handleAddToCart = (product: Product, variacoes?: Record<string, string>) => {
+    const vars = variacoes ?? selectedVariations[product.id];
+    const varsKey = JSON.stringify(vars || {});
+    const existing = cart.find((i) => i.id === product.id && JSON.stringify(i.variacoesSelecionadas || {}) === varsKey);
     if (existing) {
-      setCart(cart.map((i) => (i.id === product.id ? { ...i, quantidade: i.quantidade + 1 } : i)));
+      setCart(cart.map((i) => (i.id === product.id && JSON.stringify(i.variacoesSelecionadas || {}) === varsKey ? { ...i, quantidade: i.quantidade + 1 } : i)));
     } else {
-      setCart([...cart, { ...product, quantidade: 1 }]);
+      setCart([...cart, { ...product, quantidade: 1, variacoesSelecionadas: vars }]);
     }
   };
 
-  const handleRemoveFromCart = (id: string) => {
-    setCart(cart.filter((i) => i.id !== id));
+  const setVariation = (productId: string, tipo: string, valor: string) => {
+    setSelectedVariations((prev) => ({
+      ...prev,
+      [productId]: { ...(prev[productId] || {}), [tipo]: valor },
+    }));
+  };
+
+  const handleRemoveFromCart = (index: number) => {
+    setCart(cart.filter((_, i) => i !== index));
   };
 
   const handleEnviarPedidoWhatsApp = () => {
@@ -88,6 +100,7 @@ export default function DashboardLojaPage() {
       quantidade: item.quantidade,
       precoUnit: getFinalPrice(item),
       precoTotal: getFinalPrice(item) * item.quantidade,
+      variacoes: item.variacoesSelecionadas,
     }));
     window.open(whatsAppOrderUrl(buildCartMessage(items)), '_blank');
   };
@@ -104,11 +117,11 @@ export default function DashboardLojaPage() {
               ← Voltar ao dashboard
             </Link>
             <h1 className="text-3xl md:text-4xl font-extrabold text-orange-300">
-              Loja Oficial Westham
+              Loja Westham
             </h1>
             <p className="text-neutral-300 text-sm md:text-base mt-2">
               Camisetas, acessórios e itens oficiais do Sport Club Westham.
-              {user?.role === 'sócio' && ' Você é sócio: veja os produtos com desconto especial.'}
+              {(user?.role === 'sócio' || user?.role === 'jogador') && ' Você tem direito a descontos especiais na loja.'}
             </p>
           </div>
           {cart.length > 0 && (
@@ -133,7 +146,7 @@ export default function DashboardLojaPage() {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {products.map((product) => {
             const hasSocioDiscount =
-              user?.role === 'sócio' && product.tem_desconto_socio && product.desconto_socio;
+              (user?.role === 'sócio' || user?.role === 'jogador') && product.tem_desconto_socio && product.desconto_socio;
             const finalPrice =
               hasSocioDiscount && product.desconto_socio
                 ? product.preco * (1 - product.desconto_socio / 100)
@@ -144,11 +157,11 @@ export default function DashboardLojaPage() {
                 key={product.id}
                 className="hover:shadow-2xl transition overflow-hidden bg-neutral-900 border border-neutral-800"
               >
-                <div className="w-full h-48 bg-neutral-800 flex items-center justify-center mb-4 overflow-hidden rounded-lg">
+                <div className="w-full aspect-square max-h-64 bg-neutral-800 flex items-center justify-center overflow-hidden rounded-lg">
                   <img
                     src={product.imagem_url}
                     alt={product.nome}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                     onError={(e) => {
                       (e.currentTarget as HTMLImageElement).src =
                         'https://via.placeholder.com/200?text=Sem+Imagem';
@@ -169,7 +182,33 @@ export default function DashboardLojaPage() {
 
                 {hasSocioDiscount && product.desconto_socio && (
                   <div className="mb-2 bg-emerald-900/40 border border-emerald-500/60 px-3 py-2 rounded text-xs font-semibold text-emerald-200">
-                    Sócios têm {product.desconto_socio}% OFF neste produto.
+                    {product.desconto_socio}% OFF para sócios e jogadores.
+                  </div>
+                )}
+
+                {(product.variacoes && product.variacoes.length > 0) && (
+                  <div className="mb-3 space-y-2">
+                    {product.variacoes.map((v: ProductVariation) => (
+                      <div key={v.tipo}>
+                        <span className="text-xs font-semibold text-neutral-400 block mb-1">{v.tipo}</span>
+                        <div className="flex flex-wrap gap-2">
+                          {v.opcoes.map((op) => (
+                            <button
+                              key={op}
+                              type="button"
+                              onClick={() => setVariation(product.id, v.tipo, op)}
+                              className={`px-3 py-1.5 rounded text-sm font-medium transition ${
+                                (selectedVariations[product.id] || {})[v.tipo] === op
+                                  ? 'bg-orange-500 text-white'
+                                  : 'bg-neutral-700 text-neutral-300 hover:bg-neutral-600'
+                              }`}
+                            >
+                              {op}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
 
@@ -225,20 +264,25 @@ export default function DashboardLojaPage() {
           <Card className="bg-neutral-900 border border-neutral-700 p-6">
             <h2 className="text-xl font-bold text-neutral-100 mb-4">Seu carrinho</h2>
             <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
-              {cart.map((item) => (
+              {cart.map((item, idx) => (
                 <div
-                  key={item.id}
+                  key={`${item.id}-${idx}-${JSON.stringify(item.variacoesSelecionadas || {})}`}
                   className="flex justify-between items-center py-2 border-b border-neutral-700 last:border-0"
                 >
                   <div>
                     <p className="font-medium text-neutral-200">{item.nome}</p>
+                    {item.variacoesSelecionadas && Object.keys(item.variacoesSelecionadas).length > 0 && (
+                      <p className="text-xs text-orange-300 mt-0.5">
+                        {Object.entries(item.variacoesSelecionadas).map(([k, v]) => `${k}: ${v}`).join(' • ')}
+                      </p>
+                    )}
                     <p className="text-sm text-neutral-400">
                       {item.quantidade}x R$ {getFinalPrice(item).toFixed(2)}
                     </p>
                   </div>
                   <button
                     type="button"
-                    onClick={() => handleRemoveFromCart(item.id)}
+                    onClick={() => handleRemoveFromCart(idx)}
                     className="text-red-400 hover:text-red-300 text-sm"
                   >
                     Remover

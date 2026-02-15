@@ -22,11 +22,15 @@ const defaultDescription =
 const ogImagePath = '/logoswest/ESCUDO PNG COM MOLDURA.png';
 
 export const metadata: Metadata = {
-  title: defaultTitle,
+  title: { default: defaultTitle, template: '%s | Sport Club Westham' },
   description: defaultDescription,
+  keywords: ['Sport Club Westham', 'Westham', 'clube', 'futebol', 'sócio', 'notícias', 'escalação', 'projetos'],
+  authors: [{ name: 'Sport Club Westham' }],
+  creator: 'Sport Club Westham',
   metadataBase: new URL(siteUrl),
+  robots: { index: true, follow: true },
   icons: {
-    icon: [{ url: '/logoswest/black.png', type: 'image/png' }],
+    icon: [{ url: '/logoswest/black.ico', type: 'image/x-icon' }],
     apple: [{ url: '/logoswest/black.png', type: 'image/png' }],
   },
   openGraph: {

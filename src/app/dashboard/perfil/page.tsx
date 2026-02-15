@@ -222,9 +222,9 @@ export default function PerfilPage() {
           <Card className="p-6 border-2 border-orange-500/50 bg-gradient-to-br from-orange-50 to-neutral-50">
             <h2 className="font-bold text-lg text-neutral-900 mb-4">Carteirinha de sócio</h2>
             <div className="flex flex-col sm:flex-row items-center gap-6 p-4 bg-white rounded-xl border border-neutral-200">
-              <div className="w-20 h-20 rounded-full overflow-hidden bg-neutral-200 flex items-center justify-center flex-shrink-0">
+              <div className="w-20 h-20 rounded-full overflow-hidden bg-neutral-200 flex items-center justify-center flex-shrink-0 aspect-square">
                 {user.avatar_url ? (
-                  <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                  <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover object-center" />
                 ) : (
                   <span className="text-3xl font-bold text-neutral-400">
                     {(user.nome || user.email)[0]?.toUpperCase()}
@@ -311,9 +311,9 @@ export default function PerfilPage() {
               <div className="flex-shrink-0 flex flex-col items-center">
                 <div className="w-28 h-28 rounded-full overflow-hidden bg-neutral-200 flex items-center justify-center ring-2 ring-neutral-300">
                   {avatarPreview ? (
-                    <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                    <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover object-center" />
                   ) : avatarUrl ? (
-                    <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                    <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover object-center" />
                   ) : (
                     <span className="text-4xl font-bold text-neutral-400">
                       {(user.nome || user.email)[0]?.toUpperCase()}

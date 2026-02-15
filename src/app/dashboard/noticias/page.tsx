@@ -2,21 +2,28 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Card } from '@/components/Card';
 import { NewsCard } from '@/components/NewsCard';
+import { ConfirmModal } from '@/components/ConfirmModal';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
 import type { News } from '@/types';
 
 export default function DashboardNoticiasPage() {
+  const { user } = useAuth();
+  const router = useRouter();
   const [news, setNews] = useState<News[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterModalidade, setFilterModalidade] = useState<'todas' | 'campo' | 'futsal' | 'fut7' | 'redes'>('todas');
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
 
   useEffect(() => {
     const load = async () => {
       const { data, error } = await supabase
         .from('news')
         .select('*')
+        .order('destaque', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (!error && data) {
@@ -109,10 +116,36 @@ export default function DashboardNoticiasPage() {
                   : '',
                 category: n.categoria,
               }}
+              onEdit={user?.role === 'admin' ? (item) => router.push(`/admin?tab=news&edit=${item.id}`) : undefined}
+              onDelete={user?.role === 'admin' ? (newsId) => {
+                setConfirmModal({
+                  title: 'Excluir notícia',
+                  message: 'Deseja deletar esta notícia?',
+                  onConfirm: async () => {
+                    const toDelete = news.find((x) => x.id === newsId);
+                    const { deleteOldFileIfOurs, NEWS_BUCKET } = await import('@/lib/storage');
+                    if (toDelete?.imagem_url) await deleteOldFileIfOurs(toDelete.imagem_url, NEWS_BUCKET);
+                    const { error } = await supabase.from('news').delete().eq('id', newsId);
+                    if (!error) setNews((prev) => prev.filter((x) => x.id !== newsId));
+                  },
+                });
+              } : undefined}
+              onUpdate={async (updated) => {
+                setNews((prev) => prev.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)));
+              }}
             />
           ))}
         </div>
       </div>
+      {confirmModal && (
+        <ConfirmModal
+          open
+          title={confirmModal.title}
+          message={confirmModal.message}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
     </main>
   );
 }

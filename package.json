@@ -12,6 +12,7 @@
     "@supabase/supabase-js": "^2.95.3",
     "axios": "^1.13.4",
     "clsx": "^2.1.1",
+    "jspdf": "^2.5.2",
     "next": "16.1.6",
     "next-auth": "^4.24.13",
     "react": "19.2.3",
@@ -27,6 +28,7 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "puppeteer": "^24.37.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

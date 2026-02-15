@@ -1,14 +1,33 @@
 'use client';
 
+import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { News, Product, User, NewsModalidade } from '@/types';
+import {
+  uploadNewsImage,
+  uploadPlayerPhoto,
+  uploadProductImage,
+  uploadProjectImage,
+  uploadHistoryPhoto,
+  deleteOldFileIfOurs,
+  deleteOldFilesIfOurs,
+  NEWS_BUCKET,
+  PLAYERS_BUCKET,
+  PRODUCTS_BUCKET,
+  PROJECTS_BUCKET,
+  HISTORY_PHOTOS_BUCKET,
+  isOurStorageUrl,
+} from '@/lib/storage';
+import { ImageUpload } from '@/components/ImageUpload';
+import { LineupField, getFormationsForModalidade } from '@/components/LineupField';
+import { ConfirmModal } from '@/components/ConfirmModal';
+import type { News, Product, ProductVariation, User, NewsModalidade } from '@/types';
 
 // Helpers
 function getYouTubeEmbed(url: string) {
@@ -49,7 +68,8 @@ function guessImgurDirect(url: string) {
 export default function AdminPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'news' | 'players' | 'lineup' | 'ranks' | 'shop' | 'socio' | 'suporte' | 'historia'>('ranks');
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState<'news' | 'players' | 'lineup' | 'ranks' | 'shop' | 'projects' | 'suporte' | 'historia' | 'jogos'>('ranks');
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   
@@ -61,8 +81,10 @@ export default function AdminPage() {
   const [newsImage, setNewsImage] = useState('');
   const [newsVideo, setNewsVideo] = useState('');
   const [newsLinkExterno, setNewsLinkExterno] = useState('');
+  const [newsDestaque, setNewsDestaque] = useState(false);
   const [newsList, setNewsList] = useState<News[]>([]);
   const [editingNews, setEditingNews] = useState<string | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
 
   // Player states
   const [playerName, setPlayerName] = useState('');
@@ -76,15 +98,26 @@ export default function AdminPage() {
   const [editModalidadesCampo, setEditModalidadesCampo] = useState(true);
   const [editModalidadesFut7, setEditModalidadesFut7] = useState(false);
   const [editModalidadesFutsal, setEditModalidadesFutsal] = useState(false);
+  const [editingPlayer, setEditingPlayer] = useState<any | null>(null);
+  const [editPlayerGols, setEditPlayerGols] = useState<number>(0);
+  const [editPlayerCartoesA, setEditPlayerCartoesA] = useState<number>(0);
+  const [editPlayerCartoesV, setEditPlayerCartoesV] = useState<number>(0);
+  const [editPlayerFaltas, setEditPlayerFaltas] = useState<number>(0);
+  const [editPlayerReserva, setEditPlayerReserva] = useState(false);
+  const [editPlayerDestaqueCampo, setEditPlayerDestaqueCampo] = useState(false);
+  const [editPlayerDestaqueFut7, setEditPlayerDestaqueFut7] = useState(false);
+  const [editPlayerDestaqueFutsal, setEditPlayerDestaqueFutsal] = useState(false);
+  const [editPlayerFotoUrl, setEditPlayerFotoUrl] = useState('');
   const [playersList, setPlayersList] = useState<any[]>([]);
 
   // Lineup states
-  const [titulares, setTitulares] = useState<any[]>([
-    { id: '1', nome: 'João Silva', numero: 7, gols_jogo: 0 },
-  ]);
-  const [reservas, setReservas] = useState<any[]>([
-    { id: '2', nome: 'Pedro Santos', numero: 5, gols_jogo: 0 },
-  ]);
+  const [lineupModalidade, setLineupModalidade] = useState<'campo' | 'fut7' | 'futsal'>('campo');
+  const [lineupFormacao, setLineupFormacao] = useState('4-3-3');
+  const [formationTemplates, setFormationTemplates] = useState<{ nome: string; linhas?: number[] }[]>([]);
+  const [lineupProximaPartida, setLineupProximaPartida] = useState('');
+  const [lineupSaving, setLineupSaving] = useState(false);
+  const [lineupSlotPlayers, setLineupSlotPlayers] = useState<Record<string, { id: string; nome: string; numero: number }>>({});
+  const [lineupSlotLabels, setLineupSlotLabels] = useState<Record<string, string>>({});
 
   // Ranks states
   const [rankRequests, setRankRequests] = useState<User[]>([]);
@@ -100,6 +133,10 @@ export default function AdminPage() {
   const [newImageUrl, setNewImageUrl] = useState('');
   const [productModels, setProductModels] = useState<string[]>([]);
   const [newModelInput, setNewModelInput] = useState('');
+  const [productVariations, setProductVariations] = useState<ProductVariation[]>([]);
+  const [newVariationTipo, setNewVariationTipo] = useState('');
+  const [newVariationOpcao, setNewVariationOpcao] = useState('');
+  const [editingVariationIdx, setEditingVariationIdx] = useState<number | null>(null);
   const [productCategory, setProductCategory] = useState('camiseta');
   const [productStock, setProductStock] = useState('');
   const [temDescontoSocio, setTemDescontoSocio] = useState(false);
@@ -107,16 +144,38 @@ export default function AdminPage() {
   const [productDestaque, setProductDestaque] = useState(false);
   const [productsList, setProductsList] = useState<Product[]>([]);
   const [editingProduct, setEditingProduct] = useState<string | null>(null);
+  const productImageInputRef = useRef<HTMLInputElement>(null);
 
-  const [socioRequests, setSocioRequests] = useState<any[]>([]);
   const [supportMessages, setSupportMessages] = useState<any[]>([]);
+  const [supportSubTab, setSupportSubTab] = useState<'suporte' | 'amistoso' | 'projetos'>('suporte');
   const [historyBlocks, setHistoryBlocks] = useState<any[]>([]);
   const [historyPhotos, setHistoryPhotos] = useState<any[]>([]);
   const [historyTitulo, setHistoryTitulo] = useState('');
   const [historyConteudo, setHistoryConteudo] = useState('');
   const [editingHistoryId, setEditingHistoryId] = useState<string | null>(null);
-  const [newPhotoUrl, setNewPhotoUrl] = useState('');
   const [newPhotoLegenda, setNewPhotoLegenda] = useState('');
+  const historyPhotoInputRef = useRef<HTMLInputElement>(null);
+  const [cashFlowModerators, setCashFlowModerators] = useState<{ id: string; user_id: string; user_nome?: string; user_email?: string }[]>([]);
+  const [addModeratorUserId, setAddModeratorUserId] = useState('');
+  const [projectsList, setProjectsList] = useState<any[]>([]);
+  const [projectTitulo, setProjectTitulo] = useState('');
+  const [projectDescricao, setProjectDescricao] = useState('');
+  const [projectImagem, setProjectImagem] = useState('');
+  const [projectVideo, setProjectVideo] = useState('');
+  const [projectStatus, setProjectStatus] = useState('ativo');
+  const [projectTipo, setProjectTipo] = useState('');
+  const [projectDestaque, setProjectDestaque] = useState(false);
+  const [editingProject, setEditingProject] = useState<string | null>(null);
+
+  const [matchesList, setMatchesList] = useState<any[]>([]);
+  const [matchData, setMatchData] = useState('');
+  const [matchAdversario, setMatchAdversario] = useState('');
+  const [matchLocal, setMatchLocal] = useState('');
+  const [matchTipo, setMatchTipo] = useState<'amistoso' | 'campeonato'>('amistoso');
+  const [matchModalidade, setMatchModalidade] = useState<'campo' | 'fut7' | 'futsal'>('campo');
+  const [editingMatch, setEditingMatch] = useState<string | null>(null);
+
+  const [modalidadeStatsList, setModalidadeStatsList] = useState<Record<string, { ultimo_resultado: string; gols_total: number; vitorias: number; derrotas: number }>>({});
 
   useEffect(() => {
     if (!loading && (!user || user.role !== 'admin')) {
@@ -130,23 +189,25 @@ export default function AdminPage() {
 
         setIsLoadingData(true);
 
-        const [profilesRes, newsRes, playersRes, productsRes, socioRes, supportRes] = await Promise.all([
+        const [profilesRes, newsRes, playersRes, productsRes, supportRes, formationsRes, projectsRes] = await Promise.all([
           supabase.from('profiles').select('id, email, first_name, last_name, role'),
           supabase
             .from('news')
             .select('*')
+            .order('destaque', { ascending: false })
             .order('created_at', { ascending: false })
             .limit(30),
           supabase
             .from('players')
-            .select('id, nome, numero, posicao, idade, gols, nivel')
+            .select('id, nome, numero, posicao, idade, gols, nivel, joga_campo, joga_fut7, joga_futsal, cartoes_amarelos, cartoes_vermelhos, faltas, reserva, destaque_campo, destaque_fut7, destaque_futsal, foto_url')
             .order('numero', { ascending: true }),
           supabase
             .from('store_products')
             .select('*')
             .order('created_at', { ascending: false }),
-          supabase.from('socio_requests').select('*').order('created_at', { ascending: false }),
           supabase.from('support_messages').select('*').order('created_at', { ascending: false }),
+          supabase.from('formation_templates').select('nome, linhas').order('nome'),
+          supabase.from('projects').select('*').order('destaque', { ascending: false }).order('created_at', { ascending: false }),
         ]);
 
         if (!profilesRes.error && profilesRes.data) {
@@ -204,6 +265,7 @@ export default function AdminPage() {
               imagem_url: p.imagem_url,
               imagens: p.imagens ?? [],
               modelos: p.modelos ?? [],
+              variacoes: p.variacoes && Array.isArray(p.variacoes) ? p.variacoes : [],
               categoria: p.categoria,
               estoque: p.estoque,
               data_criacao: p.created_at,
@@ -214,8 +276,9 @@ export default function AdminPage() {
           );
         }
 
-        if (!socioRes.error && socioRes.data) setSocioRequests(socioRes.data);
         if (!supportRes.error && supportRes.data) setSupportMessages(supportRes.data);
+        if (!formationsRes.error && formationsRes.data) setFormationTemplates(formationsRes.data);
+        if (!projectsRes.error && projectsRes.data) setProjectsList(projectsRes.data);
       } finally {
         setIsLoadingData(false);
       }
@@ -225,6 +288,127 @@ export default function AdminPage() {
       loadInitialData();
     }
   }, [user, loading, router]);
+
+  const loadCashFlowModerators = async () => {
+    const { data } = await supabase
+      .from('cash_flow_moderators')
+      .select('id, user_id')
+      .order('created_at', { ascending: true });
+    if (data) {
+      const withNames = await Promise.all(
+        data.map(async (m: any) => {
+          const { data: p } = await supabase
+            .from('profiles')
+            .select('first_name, last_name, email')
+            .eq('id', m.user_id)
+            .single();
+          return {
+            ...m,
+            user_nome: p ? `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || p.email : '',
+            user_email: p?.email ?? '',
+          };
+        })
+      );
+      setCashFlowModerators(withNames);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'ranks' && user) loadCashFlowModerators();
+  }, [activeTab, user]);
+
+  useEffect(() => {
+    if ((activeTab !== 'jogos' && activeTab !== 'lineup') || !user) return;
+    const load = async () => {
+      const [matchesRes, statsRes] = await Promise.all([
+        supabase.from('matches').select('*').order('data', { ascending: true }),
+        supabase.from('modalidade_stats').select('*'),
+      ]);
+      if (!matchesRes.error && matchesRes.data) setMatchesList(matchesRes.data);
+      if (!statsRes.error && statsRes.data) {
+        const map: Record<string, any> = {};
+        statsRes.data.forEach((s: any) => {
+          map[s.modalidade] = {
+            ultimo_resultado: s.ultimo_resultado || '',
+            gols_total: s.gols_total ?? 0,
+            vitorias: s.vitorias ?? 0,
+            derrotas: s.derrotas ?? 0,
+          };
+        });
+        setModalidadeStatsList(map);
+      }
+    };
+    load();
+  }, [activeTab, user]);
+
+  // Abrir aba Notícias e carregar para edição quando vem de /dashboard/noticias (Editar)
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const editId = searchParams.get('edit');
+    if (!isLoadingData && tab === 'news' && editId && newsList.length > 0) {
+      setActiveTab('news');
+      const newsToEdit = newsList.find((n) => n.id === editId);
+      if (newsToEdit) {
+        setEditingNews(newsToEdit.id);
+        setNewsTitle(newsToEdit.titulo);
+        setNewsContent(newsToEdit.conteudo);
+        setNewsCategory((newsToEdit.categoria || 'general') as News['categoria']);
+        setNewsModalidade((newsToEdit.modalidade || 'campo') as NewsModalidade);
+        setNewsImage(newsToEdit.imagem_url || '');
+        setNewsVideo(newsToEdit.video_url || '');
+        setNewsLinkExterno(newsToEdit.link_externo || '');
+      }
+      router.replace('/admin');
+    }
+  }, [isLoadingData, searchParams, newsList, router]);
+
+  useEffect(() => {
+    if (activeTab === 'lineup' && matchesList.length > 0 && !lineupProximaPartida) {
+      const next = matchesList
+        .filter((m: any) => (m.modalidade || 'campo') === lineupModalidade && new Date(m.data) >= new Date())
+        .sort((a: any, b: any) => new Date(a.data).getTime() - new Date(b.data).getTime())[0];
+      if (next?.data) setLineupProximaPartida(new Date(next.data).toISOString().slice(0, 10));
+    }
+  }, [activeTab, matchesList, lineupModalidade, lineupProximaPartida]);
+
+  useEffect(() => {
+    if (activeTab !== 'lineup' || !user) return;
+    const load = async () => {
+      const { data } = await supabase
+        .from('lineups')
+        .select('id, formacao, proxima_partida, lineup_players(posicao, player_id, numero_camisa, posicao_label)')
+        .eq('modalidade', lineupModalidade)
+        .order('proxima_partida', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data?.lineup_players && Array.isArray(data.lineup_players) && playersList.length > 0) {
+        const lp = data.lineup_players as any[];
+        const map: Record<string, { id: string; nome: string; numero: number }> = {};
+        const labelsMap: Record<string, string> = {};
+        lp.forEach((row: any) => {
+          const pid = row.player_id;
+          const pos = row.posicao;
+          if (pos && pid && /^slot_\d+$/.test(pos)) {
+            const p = playersList.find((x: any) => x.id === pid);
+            map[pos] = {
+              id: pid,
+              nome: p?.nome ?? 'Jogador',
+              numero: row.numero_camisa ?? p?.numero ?? 0,
+            };
+            if (row.posicao_label) labelsMap[pos] = row.posicao_label;
+          }
+        });
+        setLineupSlotPlayers(map);
+        setLineupSlotLabels(labelsMap);
+        if (data.formacao) setLineupFormacao(data.formacao);
+        if (data.proxima_partida) setLineupProximaPartida(new Date(data.proxima_partida).toISOString().slice(0, 10));
+      } else {
+        setLineupSlotPlayers({});
+        setLineupSlotLabels({});
+      }
+    };
+    load();
+  }, [activeTab, user, lineupModalidade, playersList.length]);
 
   useEffect(() => {
     if (activeTab !== 'historia' || !user) return;
@@ -277,6 +461,7 @@ export default function AdminPage() {
       imagem_url: newsImage || null,
       video_url: newsVideo || null,
       autor_id: user.id,
+      destaque: newsDestaque,
     };
     payload.link_externo = newsCategory === 'social' ? (newsLinkExterno || null) : null;
 
@@ -300,6 +485,7 @@ export default function AdminPage() {
                 video_url: (payload.video_url as string | null) ?? undefined,
                 link_externo: (payload.link_externo as string | null) ?? undefined,
                 autor_id: payload.autor_id as string,
+                destaque: payload.destaque as boolean,
               }
             : n,
         ),
@@ -346,17 +532,25 @@ export default function AdminPage() {
     setNewsImage('');
     setNewsVideo('');
     setNewsLinkExterno('');
+    setNewsDestaque(false);
   };
 
-  const handleDeleteNews = async (id: string) => {
-    if (!confirm('Deseja deletar esta notícia?')) return;
-    const { error } = await supabase.from('news').delete().eq('id', id);
-    if (error) {
-      showFeedback('error', `Erro ao deletar notícia: ${error.message}`);
-      return;
-    }
-    setNewsList((prev) => prev.filter((n) => n.id !== id));
-    showFeedback('success', 'Notícia deletada!');
+  const handleDeleteNews = (id: string) => {
+    setConfirmModal({
+      title: 'Excluir notícia',
+      message: 'Deseja deletar esta notícia?',
+      onConfirm: async () => {
+        const news = newsList.find((n) => n.id === id);
+        if (news?.imagem_url) await deleteOldFileIfOurs(news.imagem_url, NEWS_BUCKET);
+        const { error } = await supabase.from('news').delete().eq('id', id);
+        if (error) {
+          showFeedback('error', `Erro ao deletar notícia: ${error.message}`);
+          return;
+        }
+        setNewsList((prev) => prev.filter((n) => n.id !== id));
+        showFeedback('success', 'Notícia deletada!');
+      },
+    });
   };
 
   const handleEditNews = (news: any) => {
@@ -368,6 +562,7 @@ export default function AdminPage() {
     setNewsImage(news.imagem_url || '');
     setNewsVideo(news.video_url || '');
     setNewsLinkExterno(news.link_externo || '');
+    setNewsDestaque(!!news.destaque);
   };
 
   // Players handlers
@@ -434,20 +629,205 @@ export default function AdminPage() {
     setEditModalidadesFutsal(!!player.joga_futsal);
   };
 
-  const handleDeletePlayer = async (id: string) => {
-    if (!confirm('Deseja deletar este jogador?')) return;
-    const { error } = await supabase.from('players').delete().eq('id', id);
-    if (error) {
-      showFeedback('error', `Erro ao deletar jogador: ${error.message}`);
-      return;
-    }
-    setPlayersList((prev) => prev.filter((p) => p.id !== id));
-    showFeedback('success', 'Jogador deletado!');
+  const handleDeletePlayer = (id: string) => {
+    setConfirmModal({
+      title: 'Excluir jogador',
+      message: 'Deseja deletar este jogador?',
+      onConfirm: async () => {
+        const p = playersList.find((x) => x.id === id);
+        if (p?.foto_url) await deleteOldFileIfOurs(p.foto_url, PLAYERS_BUCKET);
+        const { error } = await supabase.from('players').delete().eq('id', id);
+        if (error) {
+          showFeedback('error', `Erro ao deletar jogador: ${error.message}`);
+          return;
+        }
+        setPlayersList((prev) => prev.filter((p) => p.id !== id));
+        setEditingPlayer(null);
+        showFeedback('success', 'Jogador deletado!');
+      },
+    });
   };
 
   const handleUpdatePlayerGoals = async (id: string, goals: number) => {
     setPlayersList((prev) => prev.map((p) => (p.id === id ? { ...p, gols: goals } : p)));
     await supabase.from('players').update({ gols: goals }).eq('id', id);
+  };
+
+  const handleSavePlayerFull = async () => {
+    const p = editingPlayer;
+    if (!p) return handleAddPlayer();
+    const payload = {
+      nome: playerName.trim(),
+      numero: parseInt(playerNumber, 10),
+      posicao: playerPosition.trim(),
+      idade: playerAge ? parseInt(playerAge, 10) : null,
+      gols: editPlayerGols ?? p.gols ?? 0,
+      cartoes_amarelos: editPlayerCartoesA ?? p.cartoes_amarelos ?? 0,
+      cartoes_vermelhos: editPlayerCartoesV ?? p.cartoes_vermelhos ?? 0,
+      faltas: editPlayerFaltas ?? p.faltas ?? 0,
+      reserva: editPlayerReserva ?? !!p.reserva,
+      joga_campo: playerJogaCampo,
+      joga_fut7: playerJogaFut7,
+      joga_futsal: playerJogaFutsal,
+      destaque_campo: editPlayerDestaqueCampo,
+      destaque_fut7: editPlayerDestaqueFut7,
+      destaque_futsal: editPlayerDestaqueFutsal,
+      foto_url: editPlayerFotoUrl.trim() || null,
+    };
+    const { error } = await supabase.from('players').update(payload).eq('id', p.id);
+    if (error) {
+      showFeedback('error', error.message);
+      return;
+    }
+    setPlayersList((prev) => prev.map((x) => (x.id === p.id ? { ...x, ...payload } : x)));
+    setEditingPlayer(null);
+    clearPlayerForm();
+    showFeedback('success', 'Jogador atualizado!');
+  };
+
+  const handleUpdatePlayerField = async (id: string, field: string, value: number | boolean) => {
+    const { error } = await supabase.from('players').update({ [field]: value }).eq('id', id);
+    if (error) showFeedback('error', error.message);
+    else setPlayersList((prev) => prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)));
+  };
+
+  const handleSaveLineup = async () => {
+    const nTitulares = lineupModalidade === 'futsal' ? 5 : lineupModalidade === 'fut7' ? 7 : 11;
+    const slots = ['slot_0', 'slot_1', 'slot_2', 'slot_3', 'slot_4', 'slot_5', 'slot_6', 'slot_7', 'slot_8', 'slot_9', 'slot_10'].slice(0, nTitulares);
+    const filled = slots.filter((s) => lineupSlotPlayers[s]?.id);
+    if (filled.length < nTitulares) {
+      showFeedback('error', `Selecione os ${nTitulares} jogadores titulares no desenho do campo.`);
+      return;
+    }
+    const dataPartida = lineupProximaPartida || new Date().toISOString().slice(0, 10);
+    setLineupSaving(true);
+    try {
+      const { data: existing } = await supabase
+        .from('lineups')
+        .select('id')
+        .eq('modalidade', lineupModalidade)
+        .order('proxima_partida', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      let escalacaoId: string;
+      if (existing?.id) {
+        const { error: errUpd } = await supabase
+          .from('lineups')
+          .update({
+            proxima_partida: dataPartida,
+            formacao: lineupFormacao,
+            descricao: `Escalação ${lineupModalidade} - ${lineupFormacao}`,
+          })
+          .eq('id', existing.id);
+        if (errUpd) {
+          showFeedback('error', `Erro ao atualizar escalação: ${errUpd.message}`);
+          return;
+        }
+        escalacaoId = existing.id;
+        await supabase.from('lineup_players').delete().eq('escalacao_id', escalacaoId);
+      } else {
+        const { data: lineupRow, error: errLineup } = await supabase
+          .from('lineups')
+          .insert({
+            proxima_partida: dataPartida,
+            formacao: lineupFormacao,
+            descricao: `Escalação ${lineupModalidade} - ${lineupFormacao}`,
+            modalidade: lineupModalidade,
+          })
+          .select('id')
+          .single();
+        if (errLineup) {
+          showFeedback('error', `Erro ao salvar escalação: ${errLineup.message}`);
+          return;
+        }
+        escalacaoId = lineupRow.id;
+      }
+      const rows = slots.map((posicao) => {
+        const p = lineupSlotPlayers[posicao];
+        const label = lineupSlotLabels[posicao]?.trim();
+        return {
+          escalacao_id: escalacaoId,
+          player_id: p.id,
+          posicao,
+          numero_camisa: p.numero,
+          titular: true,
+          posicao_label: label || null,
+        };
+      });
+      const { error: errLp } = await supabase.from('lineup_players').insert(rows);
+      if (errLp) {
+        showFeedback('error', `Erro ao salvar jogadores: ${errLp.message}`);
+        return;
+      }
+      showFeedback('success', 'Escalação salva! A página de jogos será atualizada.');
+    } finally {
+      setLineupSaving(false);
+    }
+  };
+
+  const handleLineupLabelChange = (slotId: string, label: string) => {
+    setLineupSlotLabels((prev) => ({ ...prev, [slotId]: label }));
+  };
+
+  const handleLineupSlotChange = (slotId: string, playerId: string | null) => {
+    if (!playerId) {
+      setLineupSlotPlayers((prev) => {
+        const next = { ...prev };
+        delete next[slotId];
+        return next;
+      });
+      return;
+    }
+    const p = playersList.find((x: any) => x.id === playerId);
+    if (p) {
+      setLineupSlotPlayers((prev) => ({
+        ...prev,
+        [slotId]: {
+          id: p.id,
+          nome: p.nome || 'Jogador',
+          numero: p.numero ?? p.numero_camisa ?? 0,
+        },
+      }));
+    }
+  };
+
+  const clearPlayerForm = () => {
+    setPlayerName('');
+    setPlayerNumber('');
+    setPlayerPosition('');
+    setPlayerAge('');
+    setPlayerJogaCampo(true);
+    setPlayerJogaFut7(false);
+    setPlayerJogaFutsal(false);
+    setEditPlayerGols(0);
+    setEditPlayerCartoesA(0);
+    setEditPlayerCartoesV(0);
+    setEditPlayerFaltas(0);
+    setEditPlayerReserva(false);
+    setEditPlayerDestaqueCampo(false);
+    setEditPlayerDestaqueFut7(false);
+    setEditPlayerDestaqueFutsal(false);
+    setEditPlayerFotoUrl('');
+  };
+
+  const openEditPlayer = (player: any) => {
+    setEditingPlayer(player);
+    setPlayerName(player.nome || '');
+    setPlayerNumber(String(player.numero || ''));
+    setPlayerPosition(player.posicao || '');
+    setPlayerAge(player.idade != null ? String(player.idade) : '');
+    setPlayerJogaCampo(player.joga_campo !== false);
+    setPlayerJogaFut7(!!player.joga_fut7);
+    setPlayerJogaFutsal(!!player.joga_futsal);
+    setEditPlayerGols(player.gols ?? 0);
+    setEditPlayerCartoesA(player.cartoes_amarelos ?? 0);
+    setEditPlayerCartoesV(player.cartoes_vermelhos ?? 0);
+    setEditPlayerFaltas(player.faltas ?? 0);
+    setEditPlayerReserva(!!player.reserva);
+    setEditPlayerDestaqueCampo(!!player.destaque_campo);
+    setEditPlayerDestaqueFut7(!!player.destaque_fut7);
+    setEditPlayerDestaqueFutsal(!!player.destaque_futsal);
+    setEditPlayerFotoUrl(player.foto_url || '');
   };
 
   // Ranks handlers
@@ -476,6 +856,7 @@ export default function AdminPage() {
         imagem_url: imagens[0] || productImage,
         imagens,
         modelos: productModels,
+        variacoes: productVariations.length > 0 ? productVariations : [],
         categoria: productCategory,
         estoque: parseInt(productStock || '0', 10),
         tem_desconto_socio: temDescontoSocio,
@@ -526,6 +907,7 @@ export default function AdminPage() {
           imagem_url: data.imagem_url,
           imagens: data.imagens ?? [],
           modelos: data.modelos ?? [],
+          variacoes: data.variacoes && Array.isArray(data.variacoes) ? data.variacoes : [],
           categoria: data.categoria,
           estoque: data.estoque,
           data_criacao: data.created_at,
@@ -543,27 +925,59 @@ export default function AdminPage() {
       setProductImage('');
       setProductImages([]);
       setProductModels([]);
+      setProductVariations([]);
       setNewImageUrl('');
       setNewModelInput('');
       setProductStock('');
       setProductCategory('camiseta');
-    setTemDescontoSocio(false);
-    setDescontoSocio('');
-    setProductDestaque(false);
+      setTemDescontoSocio(false);
+      setDescontoSocio('');
+      setProductDestaque(false);
     } else {
       showFeedback('error', 'Preencha todos os campos obrigatórios do produto.');
     }
   };
 
-  const handleDeleteProduct = async (id: string) => {
-    if (!confirm('Deseja deletar este produto?')) return;
-    const { error } = await supabase.from('store_products').delete().eq('id', id);
-    if (error) {
-      showFeedback('error', `Erro ao deletar produto: ${error.message}`);
-      return;
+  const handleDeleteProduct = (id: string) => {
+    setConfirmModal({
+      title: 'Excluir produto',
+      message: 'Deseja deletar este produto?',
+      onConfirm: async () => {
+        const prod = productsList.find((p) => p.id === id);
+        const urls = [...(prod?.imagens || []), prod?.imagem_url].filter(Boolean);
+        await deleteOldFilesIfOurs(urls, PRODUCTS_BUCKET);
+        const { error } = await supabase.from('store_products').delete().eq('id', id);
+        if (error) {
+          showFeedback('error', `Erro ao deletar produto: ${error.message}`);
+          return;
+        }
+        setProductsList((prev) => prev.filter((p) => p.id !== id));
+        showFeedback('success', 'Produto deletado!');
+      },
+    });
+  };
+
+  const addVariationOption = () => {
+    if (!newVariationTipo.trim()) return;
+    const existingIdx = productVariations.findIndex((v) => v.tipo.toLowerCase() === newVariationTipo.trim().toLowerCase());
+    if (newVariationOpcao.trim()) {
+      if (existingIdx >= 0) {
+        const copy = [...productVariations];
+        if (!copy[existingIdx].opcoes.includes(newVariationOpcao.trim())) {
+          copy[existingIdx] = { ...copy[existingIdx], opcoes: [...copy[existingIdx].opcoes, newVariationOpcao.trim()] };
+          setProductVariations(copy);
+        }
+      } else {
+        setProductVariations([...productVariations, { tipo: newVariationTipo.trim(), opcoes: [newVariationOpcao.trim()] }]);
+      }
+      setNewVariationTipo('');
+      setNewVariationOpcao('');
+    } else {
+      if (existingIdx < 0) {
+        setProductVariations([...productVariations, { tipo: newVariationTipo.trim(), opcoes: [] }]);
+        setNewVariationTipo('');
+      }
     }
-    setProductsList((prev) => prev.filter((p) => p.id !== id));
-    showFeedback('success', 'Produto deletado!');
   };
 
   const handleEditProduct = (product: any) => {
@@ -574,11 +988,123 @@ export default function AdminPage() {
     setProductImage(product.imagem_url || '');
     setProductImages(product.imagens || (product.imagem_url ? [product.imagem_url] : []));
     setProductModels(product.modelos || []);
+    setProductVariations(product.variacoes && Array.isArray(product.variacoes) ? product.variacoes : []);
     setProductCategory(product.categoria);
     setProductStock(product.estoque?.toString() || '');
     setTemDescontoSocio(product.tem_desconto_socio || false);
     setDescontoSocio(product.desconto_socio?.toString() || '');
     setProductDestaque(!!(product as any).destaque);
+  };
+
+  const handleAddProject = async () => {
+    if (!projectTitulo.trim()) {
+      showFeedback('error', 'Preencha o título do projeto.');
+      return;
+    }
+    const payload = {
+      titulo: projectTitulo.trim(),
+      descricao: projectDescricao.trim() || null,
+      imagem_capa_url: projectImagem.trim() || null,
+      video_url: projectVideo.trim() || null,
+      status: projectStatus,
+      tipo: projectTipo.trim() || null,
+      destaque: projectDestaque,
+    };
+    if (editingProject) {
+      const { error } = await supabase.from('projects').update(payload).eq('id', editingProject);
+      if (error) { showFeedback('error', error.message); return; }
+      setProjectsList((prev) => prev.map((p) => (p.id === editingProject ? { ...p, ...payload } : p)));
+      showFeedback('success', 'Projeto atualizado!');
+    } else {
+      const { data, error } = await supabase.from('projects').insert(payload).select('*').single();
+      if (error) { showFeedback('error', error.message); return; }
+      setProjectsList((prev) => [data, ...prev]);
+      showFeedback('success', 'Projeto adicionado!');
+    }
+    setEditingProject(null);
+    setProjectTitulo('');
+    setProjectDescricao('');
+    setProjectImagem('');
+    setProjectVideo('');
+    setProjectStatus('ativo');
+    setProjectTipo('');
+    setProjectDestaque(false);
+  };
+
+  const handleEditProject = (p: any) => {
+    setEditingProject(p.id);
+    setProjectTitulo(p.titulo || '');
+    setProjectDescricao(p.descricao || '');
+    setProjectImagem(p.imagem_capa_url || '');
+    setProjectVideo(p.video_url || '');
+    setProjectStatus(p.status || 'ativo');
+    setProjectTipo(p.tipo || '');
+    setProjectDestaque(!!p.destaque);
+  };
+
+  const handleDeleteProject = (id: string) => {
+    setConfirmModal({
+      title: 'Excluir projeto',
+      message: 'Excluir este projeto?',
+      onConfirm: async () => {
+        const proj = projectsList.find((p) => p.id === id);
+        if (proj?.imagem_capa_url) await deleteOldFileIfOurs(proj.imagem_capa_url, PROJECTS_BUCKET);
+        const { error } = await supabase.from('projects').delete().eq('id', id);
+        if (error) { showFeedback('error', error.message); return; }
+        setProjectsList((prev) => prev.filter((p) => p.id !== id));
+        setEditingProject(null);
+        showFeedback('success', 'Projeto excluído!');
+      },
+    });
+  };
+
+  const handleAddMatch = async () => {
+    if (!matchData.trim() || !matchAdversario.trim() || !matchLocal.trim()) {
+      showFeedback('error', 'Preencha data, adversário e local.');
+      return;
+    }
+    const dataISO = new Date(matchData).toISOString();
+    const payload = { data: dataISO, adversario: matchAdversario.trim(), local: matchLocal.trim(), tipo: matchTipo, modalidade: matchModalidade };
+    if (editingMatch) {
+      const { error } = await supabase.from('matches').update(payload).eq('id', editingMatch);
+      if (error) { showFeedback('error', error.message); return; }
+      setMatchesList((prev) => prev.map((m) => (m.id === editingMatch ? { ...m, ...payload } : m)));
+      showFeedback('success', 'Partida atualizada!');
+      setEditingMatch(null);
+    } else {
+      const { data, error } = await supabase.from('matches').insert(payload).select('*').single();
+      if (error) { showFeedback('error', error.message); return; }
+      setMatchesList((prev) => [...prev, data].sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime()));
+      showFeedback('success', 'Partida cadastrada!');
+    }
+    setMatchData('');
+    setMatchAdversario('');
+    setMatchLocal('');
+    setMatchTipo('amistoso');
+    setMatchModalidade('campo');
+  };
+
+  const handleEditMatch = (m: any) => {
+    setEditingMatch(m.id);
+    setMatchData(m.data ? new Date(m.data).toISOString().slice(0, 16) : '');
+    setMatchAdversario(m.adversario || '');
+    setMatchLocal(m.local || '');
+    setMatchTipo(m.tipo === 'campeonato' ? 'campeonato' : 'amistoso');
+    setMatchModalidade(m.modalidade === 'fut7' ? 'fut7' : m.modalidade === 'futsal' ? 'futsal' : 'campo');
+  };
+
+  const handleDeleteMatch = (id: string) => {
+    setConfirmModal({
+      title: 'Excluir partida',
+      message: 'Excluir esta partida?',
+      onConfirm: async () => {
+        const { error } = await supabase.from('matches').delete().eq('id', id);
+        if (error) { showFeedback('error', error.message); return; }
+        setMatchesList((prev) => prev.filter((m) => m.id !== id));
+        if (editingMatch === id) setEditingMatch(null);
+        showFeedback('success', 'Partida excluída!');
+      },
+    });
   };
 
   return (
@@ -613,34 +1139,46 @@ export default function AdminPage() {
           {/* Tabs Navigation */}
           <div className="flex gap-4 mb-8 flex-wrap">
             {[
-              { id: 'ranks', label: 'Aprovações', icon: '✅' },
-              { id: 'socio', label: 'Solicitações sócio', icon: '📋' },
-              { id: 'suporte', label: 'Mensagens suporte', icon: '📩' },
+              { id: 'ranks', label: 'Usuários', icon: '✅' },
+              { id: 'suporte', label: 'Mensagens', icon: '📩' },
               { id: 'news', label: 'Notícias', icon: '📰' },
               { id: 'players', label: 'Jogadores', icon: '⚽' },
               { id: 'lineup', label: 'Escalação', icon: '🏆' },
               { id: 'shop', label: 'Loja', icon: '🛍️' },
+              { id: 'projects', label: 'Projetos', icon: '📁' },
+              { id: 'jogos', label: 'Próximos Jogos', icon: '📅' },
               { id: 'historia', label: 'História', icon: '📜' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`px-6 py-3 rounded-lg font-semibold transition ${
-                  activeTab === tab.id
-                    ? 'bg-gradient-to-r from-black via-neutral-900 to-orange-600 text-white shadow-lg border border-orange-500/80'
-                    : 'bg-neutral-900 text-neutral-100 hover:shadow-md border border-neutral-700'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+              { id: 'caixa', label: 'Caixa', icon: '💰', href: '/caixa' },
+            ].map((tab) =>
+              'href' in tab && tab.href ? (
+                <Link
+                  key={tab.id}
+                  href={tab.href}
+                  className="px-6 py-3 rounded-lg font-semibold transition bg-neutral-900 text-neutral-100 hover:shadow-md border border-neutral-700 hover:border-orange-500/60"
+                >
+                  {tab.label}
+                </Link>
+              ) : (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`px-6 py-3 rounded-lg font-semibold transition ${
+                    activeTab === tab.id
+                      ? 'bg-gradient-to-r from-black via-neutral-900 to-orange-600 text-white shadow-lg border border-orange-500/80'
+                      : 'bg-neutral-900 text-neutral-100 hover:shadow-md border border-neutral-700'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              )
+            )}
           </div>
 
-          {/* Ranks Tab */}
+          {/* Usuários Tab */}
           {activeTab === 'ranks' && (
-            <Card className="shadow-2xl">
-              <h2 className="text-2xl font-bold mb-2 text-gray-800">✅ Gerenciar Usuários e Sócios</h2>
-              <p className="text-gray-600 mb-6">
+            <Card className="shadow-2xl bg-white border-2 border-neutral-200">
+              <h2 className="text-2xl font-bold mb-2 text-neutral-900">✅ Gerenciar Usuários e Sócios</h2>
+              <p className="text-neutral-700 mb-6">
                 • <strong>Usuários</strong>: Auto-aprovados ao se cadastrar (veem notícias, vitórias)<br/>
                 • <strong>Sócios</strong>: Podem ser promovidos pelo admin (veem escalações VIP, conteúdo exclusivo)<br/>
                 • <strong>Admin</strong>: Gerencia tudo
@@ -649,24 +1187,24 @@ export default function AdminPage() {
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b-2 border-gray-300">
-                      <th className="text-left py-3 px-4 font-semibold text-gray-800">Nome</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-800">Email</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-800">Nível Atual</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-800">Promover Para</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-800">Ação</th>
+                    <tr className="border-b-2 border-neutral-300 bg-neutral-50">
+                      <th className="text-left py-3 px-4 font-semibold text-neutral-900">Nome</th>
+                      <th className="text-left py-3 px-4 font-semibold text-neutral-900">Email</th>
+                      <th className="text-left py-3 px-4 font-semibold text-neutral-900">Nível Atual</th>
+                      <th className="text-left py-3 px-4 font-semibold text-neutral-900">Promover Para</th>
+                      <th className="text-left py-3 px-4 font-semibold text-neutral-900">Ação</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rankRequests.map((user) => (
-                      <tr key={user.id} className="border-b border-gray-200 hover:bg-red-50">
-                        <td className="py-3 px-4 font-semibold text-gray-800">{user.nome}</td>
-                        <td className="py-3 px-4 text-gray-600">{user.email}</td>
+                      <tr key={user.id} className="border-b border-neutral-200 hover:bg-orange-50/50">
+                        <td className="py-3 px-4 font-semibold text-neutral-900">{user.nome}</td>
+                        <td className="py-3 px-4 text-neutral-700">{user.email}</td>
                         <td className="py-3 px-4">
                           <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                            user.role === 'admin' ? 'bg-purple-100 text-purple-700' :
-                            user.role === 'sócio' ? 'bg-orange-100 text-orange-700' :
-                            'bg-blue-100 text-blue-700'
+                            user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                            user.role === 'sócio' ? 'bg-orange-100 text-orange-800' :
+                            'bg-blue-100 text-blue-800'
                           }`}>
                             {user.role === 'usuário' ? '👤 Usuário' :
                              user.role === 'sócio' ? '⭐ Sócio' :
@@ -676,7 +1214,7 @@ export default function AdminPage() {
                         <td className="py-3 px-4">
                           <select
                             onChange={(e) => setPromoteRole({...promoteRole, [user.id]: e.target.value})}
-                            className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-red-600"
+                            className="px-3 py-2 border-2 border-neutral-300 rounded-lg focus:border-orange-500 bg-white text-neutral-900"
                           >
                             <option value="">-- Selecione --</option>
                             {['usuário','sócio','jogador','admin'].filter(r => r !== user.role).map((r) => (
@@ -704,101 +1242,363 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
-            </Card>
-          )}
 
-          {/* Solicitações de sócio */}
-          {activeTab === 'socio' && (
-            <Card className="shadow-2xl">
-              <h2 className="text-2xl font-bold mb-2 text-gray-800">Solicitações para virar sócio</h2>
-              <p className="text-gray-600 mb-6">
-                Formulários enviados pela página &quot;Como virar sócio&quot;. Entre em contato pelo e-mail ou telefone para concluir a adesão.
+              <hr className="my-8 border-neutral-200" />
+              <h3 className="text-xl font-bold mb-4 text-neutral-900">💰 Moderadores de Caixa</h3>
+              <p className="text-neutral-700 mb-4 text-sm">
+                Defina até 2 pessoas que terão acesso ao fluxo de caixa (além de você, admin).
               </p>
-              <div className="overflow-x-auto">
-                {socioRequests.length === 0 ? (
-                  <p className="text-gray-500 py-6">Nenhuma solicitação ainda.</p>
+              <div className="flex flex-wrap gap-4 items-end mb-4">
+                <div className="flex-1 min-w-[200px]">
+                  <select
+                    value={addModeratorUserId}
+                    onChange={(e) => setAddModeratorUserId(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-neutral-300 rounded-lg bg-white text-neutral-900"
+                  >
+                    <option value="">-- Selecione um usuário --</option>
+                    {rankRequests
+                      .filter((u) => u.id !== user?.id && !cashFlowModerators.some((m) => m.user_id === u.id))
+                      .map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.nome} ({u.email})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <Button
+                  size="md"
+                  onClick={async () => {
+                    if (!addModeratorUserId || !user || cashFlowModerators.length >= 2) return;
+                    const { error } = await supabase.from('cash_flow_moderators').insert({
+                      user_id: addModeratorUserId,
+                      added_by: user.id,
+                    });
+                    if (error) { showFeedback('error', error.message); return; }
+                    showFeedback('success', 'Moderador adicionado!');
+                    setAddModeratorUserId('');
+                    loadCashFlowModerators();
+                  }}
+                  disabled={!addModeratorUserId || cashFlowModerators.length >= 2}
+                >
+                  Adicionar moderador
+                </Button>
+              </div>
+              {cashFlowModerators.length >= 2 && (
+                <p className="text-amber-700 font-semibold mb-4">Máximo de 2 moderadores. Remova um para adicionar outro.</p>
+              )}
+              <div className="space-y-2">
+                {cashFlowModerators.length === 0 ? (
+                  <p className="text-neutral-600 text-sm">Nenhum moderador de caixa ainda.</p>
                 ) : (
-                  <div className="space-y-4">
-                    {socioRequests.map((r) => (
-                      <div
-                        key={r.id}
-                        className={`border rounded-xl p-5 ${r.lido ? 'bg-gray-50 border-gray-200' : 'bg-orange-50/50 border-orange-200'}`}
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                          <span className="text-sm text-gray-500">
-                            {r.created_at ? new Date(r.created_at).toLocaleString('pt-BR') : ''}
-                          </span>
-                          {!r.lido && (
-                            <Button
-                              size="sm"
-                              onClick={async () => {
-                                await supabase.from('socio_requests').update({ lido: true }).eq('id', r.id);
-                                setSocioRequests((prev) => prev.map((x) => (x.id === r.id ? { ...x, lido: true } : x)));
-                              }}
-                            >
-                              Marcar como lido
-                            </Button>
-                          )}
-                        </div>
-                        <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                          <p><span className="font-semibold text-gray-700">Nome completo:</span> {r.nome_completo}</p>
-                          <p><span className="font-semibold text-gray-700">CPF:</span> {r.cpf}</p>
-                          <p><span className="font-semibold text-gray-700">Data de nascimento:</span> {r.data_nascimento ? new Date(r.data_nascimento).toLocaleDateString('pt-BR') : ''}</p>
-                          <p><span className="font-semibold text-gray-700">E-mail:</span> <a href={`mailto:${r.email}`} className="text-orange-600 hover:underline">{r.email}</a></p>
-                          <p><span className="font-semibold text-gray-700">Telefone:</span> {r.telefone}</p>
-                          <p className="sm:col-span-2"><span className="font-semibold text-gray-700">Endereço:</span> {r.endereco}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  cashFlowModerators.map((m) => (
+                    <div key={m.id} className="flex items-center justify-between border border-neutral-200 rounded-lg p-3 bg-neutral-50">
+                      <span className="font-semibold text-neutral-900">{m.user_nome || m.user_email || 'Usuário'}</span>
+                      <Button size="sm" variant="danger" onClick={async () => {
+                        await supabase.from('cash_flow_moderators').delete().eq('id', m.id);
+                        setCashFlowModerators((prev) => prev.filter((x) => x.id !== m.id));
+                        showFeedback('success', 'Moderador removido.');
+                      }}>Remover</Button>
+                    </div>
+                  ))
                 )}
               </div>
             </Card>
           )}
 
-          {/* Mensagens de suporte */}
+          {/* Mensagens */}
           {activeTab === 'suporte' && (
             <Card className="shadow-2xl">
-              <h2 className="text-2xl font-bold mb-2 text-gray-800">Mensagens de suporte / defeitos</h2>
+              <h2 className="text-2xl font-bold mb-2 text-gray-800">Mensagens: Suporte / Amistoso / Projetos</h2>
               <p className="text-gray-600 mb-6">
-                Reportes de defeitos ou problemas enviados pela página de suporte.
+                Separadas por categoria: defeitos/suporte, solicitações de amistoso e inscrições em projetos.
               </p>
-              <div className="overflow-x-auto">
-                {supportMessages.length === 0 ? (
-                  <p className="text-gray-500 py-6">Nenhuma mensagem ainda.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {supportMessages.map((m) => (
-                      <div
-                        key={m.id}
-                        className={`border rounded-lg p-4 ${m.lido ? 'bg-gray-50 border-gray-200' : 'bg-orange-50/50 border-orange-200'}`}
-                      >
-                        <div className="flex flex-wrap items-center gap-4 mb-2">
-                          <span className="text-sm text-gray-500">
-                            {m.created_at ? new Date(m.created_at).toLocaleString('pt-BR') : ''}
-                          </span>
-                          <span className="font-semibold text-gray-800">{m.nome}</span>
-                          <a href={`mailto:${m.email}`} className="text-orange-600 hover:underline text-sm">{m.email}</a>
-                          <span className="text-gray-600 text-sm">{m.telefone}</span>
-                          {!m.lido && (
-                            <Button
-                              size="sm"
-                              onClick={async () => {
-                                await supabase.from('support_messages').update({ lido: true }).eq('id', m.id);
-                                setSupportMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, lido: true } : x)));
-                              }}
-                            >
-                              Marcar lido
-                            </Button>
-                          )}
-                        </div>
-                        <p className="text-gray-700 whitespace-pre-wrap">{m.mensagem}</p>
+              <div className="flex gap-4 mb-6 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setSupportSubTab('suporte')}
+                  className={`px-4 py-2 rounded-lg font-semibold ${supportSubTab === 'suporte' ? 'bg-orange-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                >
+                  📩 Suporte
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSupportSubTab('amistoso')}
+                  className={`px-4 py-2 rounded-lg font-semibold ${supportSubTab === 'amistoso' ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                >
+                  ⚽ Marcar Amistoso
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSupportSubTab('projetos')}
+                  className={`px-4 py-2 rounded-lg font-semibold ${supportSubTab === 'projetos' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                >
+                  📁 Projetos
+                </button>
+              </div>
+              {(() => {
+                const isAmistoso = (m: any) => m.tipo === 'amistoso' || (m.mensagem || '').includes('FORMULÁRIO: Marcar amistoso');
+                const isProjetos = (m: any) => m.tipo === 'projetos' || (m.mensagem || '').includes('FORMULÁRIO: Inscrição em projeto');
+                const msgs = supportSubTab === 'amistoso'
+                  ? supportMessages.filter((m: any) => isAmistoso(m))
+                  : supportSubTab === 'projetos'
+                    ? supportMessages.filter((m: any) => isProjetos(m))
+                    : supportMessages.filter((m: any) => !isAmistoso(m) && !isProjetos(m));
+                return (
+                  <div className="overflow-x-auto">
+                    {msgs.length === 0 ? (
+                      <p className="text-gray-500 py-6">
+                        {supportSubTab === 'amistoso' ? 'Nenhuma solicitação de amistoso ainda.' : supportSubTab === 'projetos' ? 'Nenhuma inscrição em projeto ainda.' : 'Nenhuma mensagem de suporte ainda.'}
+                      </p>
+                    ) : (
+                      <div className="space-y-4">
+                        {msgs.map((m: any) => (
+                          <div
+                            key={m.id}
+                            className={`border rounded-lg p-4 ${m.lido ? 'bg-gray-50 border-gray-200' : 'bg-orange-50/50 border-orange-200'}`}
+                          >
+                            <div className="flex flex-wrap items-center gap-4 mb-2">
+                              <span className="text-sm text-gray-500">
+                                {m.created_at ? new Date(m.created_at).toLocaleString('pt-BR') : ''}
+                              </span>
+                              <span className="font-semibold text-gray-800">{m.nome}</span>
+                              <a href={`mailto:${m.email}`} className="text-orange-600 hover:underline text-sm">{m.email}</a>
+                              <span className="text-gray-600 text-sm">{m.telefone}</span>
+                              {!m.lido && (
+                                <Button
+                                  size="sm"
+                                  onClick={async () => {
+                                    await supabase.from('support_messages').update({ lido: true }).eq('id', m.id);
+                                    setSupportMessages((prev) => prev.map((x: any) => (x.id === m.id ? { ...x, lido: true } : x)));
+                                  }}
+                                >
+                                  Marcar lido
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="danger"
+                                onClick={() => {
+                                  setConfirmModal({
+                                    title: 'Excluir mensagem',
+                                    message: 'Excluir esta mensagem?',
+                                    onConfirm: async () => {
+                                      const { error } = await supabase.from('support_messages').delete().eq('id', m.id);
+                                      if (error) showFeedback('error', error.message);
+                                      else {
+                                        setSupportMessages((prev) => prev.filter((x: any) => x.id !== m.id));
+                                        showFeedback('success', 'Mensagem excluída.');
+                                      }
+                                    },
+                                  });
+                                }}
+                              >
+                                Excluir
+                              </Button>
+                            </div>
+                            <p className="text-gray-700 whitespace-pre-wrap">{m.mensagem}</p>
+                          </div>
+                        ))}
                       </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </Card>
+          )}
+
+          {/* Projetos Tab */}
+          {activeTab === 'projects' && (
+            <div className="space-y-6">
+              <Card className="shadow-2xl">
+                <h2 className="text-2xl font-bold mb-6 text-gray-800">{editingProject ? '✏️ Editar Projeto' : '📁 Adicionar Projeto'}</h2>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <Input label="Título" value={projectTitulo} onChange={(e) => setProjectTitulo(e.target.value)} placeholder="Ex: Escolinha Infantil" />
+                  <Input label="Tipo" value={projectTipo} onChange={(e) => setProjectTipo(e.target.value)} placeholder="Ex: escolinha, peneira, ação social" />
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Descrição</label>
+                    <textarea value={projectDescricao} onChange={(e) => setProjectDescricao(e.target.value)} className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg min-h-[100px]" placeholder="Descreva o projeto..." />
+                  </div>
+                  <ImageUpload
+                    label="Imagem de capa"
+                    currentUrl={projectImagem}
+                    onUpload={async (file) => {
+                      const url = await uploadProjectImage(file, editingProject, projectImagem);
+                      setProjectImagem(url);
+                      return url;
+                    }}
+                  />
+                  <Input label="URL do vídeo (opcional)" value={projectVideo} onChange={(e) => setProjectVideo(e.target.value)} placeholder="https://youtube.com/..." />
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Status</label>
+                    <select value={projectStatus} onChange={(e) => setProjectStatus(e.target.value)} className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg">
+                      <option value="ativo">Ativo</option>
+                      <option value="inscricoes_abertas">Inscrições abertas</option>
+                      <option value="encerrado">Encerrado</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" id="projectDestaque" checked={projectDestaque} onChange={(e) => setProjectDestaque(e.target.checked)} className="w-5 h-5 rounded" />
+                    <label htmlFor="projectDestaque" className="font-semibold text-gray-700">Destaque na página inicial</label>
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <Button size="lg" onClick={handleAddProject}>{editingProject ? '💾 Salvar' : '➕ Adicionar'}</Button>
+                  {editingProject && <Button size="lg" variant="secondary" onClick={() => { setEditingProject(null); setProjectTitulo(''); setProjectDescricao(''); setProjectImagem(''); setProjectVideo(''); setProjectStatus('ativo'); setProjectTipo(''); setProjectDestaque(false); }}>Cancelar</Button>}
+                </div>
+              </Card>
+              <Card className="shadow-2xl">
+                <h2 className="text-2xl font-bold mb-4 text-gray-800">Projetos ({projectsList.length})</h2>
+                {projectsList.length === 0 ? (
+                  <p className="text-gray-500 py-6">Nenhum projeto cadastrado.</p>
+                ) : (
+                  <div className="space-y-4 max-h-[32rem] overflow-y-auto">
+                    {projectsList.map((p) => (
+                      <Card key={p.id} className="hover:shadow-lg">
+                        <div className="mb-2">
+                          <p className="font-semibold text-gray-800 mb-1">{p.titulo}</p>
+                          <p className="text-xs text-gray-500 truncate max-w-md">{p.descricao}</p>
+                          <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded ${p.status === 'inscricoes_abertas' ? 'bg-orange-100 text-orange-700' : p.status === 'encerrado' ? 'bg-gray-200 text-gray-600' : 'bg-emerald-100 text-emerald-700'}`}>{p.status === 'inscricoes_abertas' ? 'Inscrições abertas' : p.status === 'encerrado' ? 'Encerrado' : 'Ativo'}{p.destaque ? ' · ⭐ Destaque' : ''}</span>
+                        </div>
+                        {p.imagem_capa_url && (
+                          <div className="w-full h-36 mb-3 bg-gray-100 flex items-center justify-center overflow-hidden rounded">
+                            <img src={p.imagem_capa_url} alt="" className="w-full h-full object-contain" onError={(e: any) => { e.currentTarget.style.display = 'none'; }} />
+                          </div>
+                        )}
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="secondary" onClick={() => handleEditProject(p)} className="flex-1">✏️ Editar</Button>
+                          <Button size="sm" variant="danger" onClick={() => handleDeleteProject(p.id)} className="flex-1">🗑️ Excluir</Button>
+                        </div>
+                      </Card>
                     ))}
                   </div>
                 )}
-              </div>
-            </Card>
+              </Card>
+            </div>
+          )}
+
+          {/* Próximos Jogos */}
+          {activeTab === 'jogos' && (
+            <div className="space-y-6">
+              <Card className="shadow-2xl">
+                <h2 className="text-2xl font-bold mb-4 text-gray-800">📊 Estatísticas por categoria</h2>
+                <p className="text-gray-600 mb-4">Preencha manualmente os dados que aparecem na tela de jogos de cada modalidade.</p>
+                <div className="grid md:grid-cols-3 gap-6">
+                  {(['campo', 'fut7', 'futsal'] as const).map((mod) => {
+                    const s = modalidadeStatsList[mod] || { ultimo_resultado: '', gols_total: 0, vitorias: 0, derrotas: 0 };
+                    const label = mod === 'campo' ? 'Campo' : mod === 'fut7' ? 'FUT 7' : 'Futsal';
+                    return (
+                      <div key={mod} className="p-4 bg-gray-50 rounded-lg border-2 border-gray-200">
+                        <h3 className="font-bold text-gray-800 mb-3">{label}</h3>
+                        <div className="space-y-2">
+                          <Input
+                            label="Último jogo (ex: Westham 3 x 1 Adversário)"
+                            value={s.ultimo_resultado}
+                            onChange={(e) => setModalidadeStatsList((prev) => ({
+                              ...prev,
+                              [mod]: { ...s, ultimo_resultado: e.target.value },
+                            }))}
+                          />
+                          <Input label="Gols total" type="number" value={String(s.gols_total)} onChange={(e) => setModalidadeStatsList((prev) => ({ ...prev, [mod]: { ...s, gols_total: parseInt(e.target.value) || 0 } }))} />
+                          <Input label="Vitórias" type="number" value={String(s.vitorias)} onChange={(e) => setModalidadeStatsList((prev) => ({ ...prev, [mod]: { ...s, vitorias: parseInt(e.target.value) || 0 } }))} />
+                          <Input label="Derrotas" type="number" value={String(s.derrotas)} onChange={(e) => setModalidadeStatsList((prev) => ({ ...prev, [mod]: { ...s, derrotas: parseInt(e.target.value) || 0 } }))} />
+                          <Button
+                            size="sm"
+                            onClick={async () => {
+                              const { error } = await supabase.from('modalidade_stats').upsert({
+                                modalidade: mod,
+                                ultimo_resultado: s.ultimo_resultado || null,
+                                gols_total: s.gols_total,
+                                vitorias: s.vitorias,
+                                derrotas: s.derrotas,
+                                updated_at: new Date().toISOString(),
+                              }, { onConflict: 'modalidade' });
+                              if (error) showFeedback('error', error.message);
+                              else showFeedback('success', `Estatísticas de ${label} salvas!`);
+                            }}
+                          >
+                            Salvar {label}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+              <Card className="shadow-2xl">
+                <h2 className="text-2xl font-bold mb-4 text-gray-800">📅 Cadastrar Próxima Partida</h2>
+                <p className="text-gray-600 mb-4">As partidas aparecem na tela inicial e nas páginas Campo, FUT 7 e Futsal.</p>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Data e Hora</label>
+                    <input
+                      type="datetime-local"
+                      value={matchData}
+                      onChange={(e) => setMatchData(e.target.value)}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <Input label="Adversário" value={matchAdversario} onChange={(e) => setMatchAdversario(e.target.value)} placeholder="Ex: Time X" />
+                  <Input label="Local" value={matchLocal} onChange={(e) => setMatchLocal(e.target.value)} placeholder="Ex: Estádio Y" />
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Modalidade</label>
+                    <select value={matchModalidade} onChange={(e) => setMatchModalidade(e.target.value as any)} className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg">
+                      <option value="campo">Campo</option>
+                      <option value="fut7">FUT 7</option>
+                      <option value="futsal">Futsal</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Tipo</label>
+                    <select value={matchTipo} onChange={(e) => setMatchTipo(e.target.value as any)} className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg">
+                      <option value="amistoso">Amistoso</option>
+                      <option value="campeonato">Campeonato</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-4">
+                  <Button size="lg" onClick={handleAddMatch}>{editingMatch ? '💾 Salvar' : '➕ Adicionar partida'}</Button>
+                  {editingMatch && (
+                    <Button size="lg" variant="secondary" onClick={() => { setEditingMatch(null); setMatchData(''); setMatchAdversario(''); setMatchLocal(''); setMatchTipo('amistoso'); setMatchModalidade('campo'); }}>Cancelar</Button>
+                  )}
+                </div>
+              </Card>
+              <Card className="shadow-2xl">
+                <h2 className="text-2xl font-bold mb-4 text-gray-800">Partidas cadastradas ({matchesList.length})</h2>
+                {matchesList.length === 0 ? (
+                  <p className="text-gray-500 py-6">Nenhuma partida cadastrada. Adicione acima.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b-2 border-gray-300">
+                          <th className="text-left py-2 px-3 font-semibold text-gray-800">Data</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-800">Adversário</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-800">Local</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-800">Modalidade</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-800">Tipo</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-800">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {matchesList.map((m) => (
+                          <tr key={m.id} className="border-b border-gray-200">
+                            <td className="py-2 px-3">{m.data ? new Date(m.data).toLocaleString('pt-BR') : ''}</td>
+                            <td className="py-2 px-3 font-medium">{m.adversario}</td>
+                            <td className="py-2 px-3">{m.local}</td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded text-xs bg-orange-100 text-orange-700">{m.modalidade === 'fut7' ? 'FUT 7' : m.modalidade === 'futsal' ? 'Futsal' : 'Campo'}</span></td>
+                            <td className="py-2 px-3">{m.tipo === 'campeonato' ? 'Campeonato' : 'Amistoso'}</td>
+                            <td className="py-2 px-3">
+                              <Button size="sm" variant="secondary" className="mr-2" onClick={() => handleEditMatch(m)}>Editar</Button>
+                              <Button size="sm" variant="danger" onClick={() => handleDeleteMatch(m.id)}>Excluir</Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </Card>
+            </div>
           )}
 
           {/* História do clube */}
@@ -840,40 +1640,59 @@ export default function AdminPage() {
                 </Button>
                 <hr className="border-gray-200" />
                 <div>
-                  <h3 className="font-bold text-gray-800 mb-3">Fotos da galeria (rodapé)</h3>
-                  <div className="flex gap-2 mb-4">
+                  <h3 className="font-bold text-gray-800 mb-3">Galeria de fotos</h3>
+                  <p className="text-sm text-gray-500 mb-3">Envie fotos diretamente (upload para o Supabase Storage).</p>
+                  {historyBlocks.length === 0 ? (
+                    <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-amber-800 mb-2">Crie um bloco de história antes de adicionar fotos.</p>
+                      <Button size="sm" onClick={async () => {
+                        const { data, error } = await supabase.from('club_history').insert({ titulo: 'História do Westham', conteudo: 'Edite este texto.', ordem: 0 }).select('*').single();
+                        if (error) { showFeedback('error', error.message); return; }
+                        setHistoryBlocks((prev) => [...prev, data]);
+                        setHistoryTitulo(data.titulo);
+                        setHistoryConteudo(data.conteudo || '');
+                        setEditingHistoryId(data.id);
+                        showFeedback('success', 'Bloco criado! Agora você pode adicionar fotos.');
+                      }}>Criar bloco inicial</Button>
+                    </div>
+                  ) : (
+                    <>
+                  <div className="flex gap-2 mb-4 flex-wrap items-center">
                     <input
-                      type="text"
-                      placeholder="URL da foto"
-                      value={newPhotoUrl}
-                      onChange={(e) => setNewPhotoUrl(e.target.value)}
-                      className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg"
+                      ref={historyPhotoInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={async (e) => {
+                        const files = e.target.files;
+                        if (!files?.length || historyBlocks.length === 0) return;
+                        const historyId = historyBlocks[0].id;
+                        for (let i = 0; i < files.length; i++) {
+                          try {
+                            const url = await uploadHistoryPhoto(files[i], historyId);
+                            const { data, error } = await supabase.from('club_history_photos').insert({ history_id: historyId, url, legenda: newPhotoLegenda.trim() || null, ordem: historyPhotos.length + i }).select('*').single();
+                            if (!error && data) setHistoryPhotos((prev) => [...prev, data]);
+                          } catch (err: any) { showFeedback('error', err?.message); }
+                        }
+                        setNewPhotoLegenda('');
+                        if (files.length > 0) showFeedback('success', `${files.length} foto(s) adicionada(s)!`);
+                        e.target.value = '';
+                      }}
                     />
                     <input
                       type="text"
-                      placeholder="Legenda"
+                      placeholder="Legenda (opcional)"
                       value={newPhotoLegenda}
                       onChange={(e) => setNewPhotoLegenda(e.target.value)}
-                      className="w-40 px-4 py-2 border-2 border-gray-300 rounded-lg"
+                      className="w-48 px-4 py-2 border-2 border-gray-300 rounded-lg"
                     />
-                    <Button
-                      size="sm"
-                      onClick={async () => {
-                        if (!newPhotoUrl.trim() || historyBlocks.length === 0) return;
-                        const historyId = historyBlocks[0].id;
-                        const { data, error } = await supabase.from('club_history_photos').insert({ history_id: historyId, url: newPhotoUrl.trim(), legenda: newPhotoLegenda.trim() || null, ordem: historyPhotos.length }).select('*').single();
-                        if (error) showFeedback('error', error.message);
-                        else {
-                          if (data) setHistoryPhotos((prev) => [...prev, data]);
-                          setNewPhotoUrl('');
-                          setNewPhotoLegenda('');
-                          showFeedback('success', 'Foto adicionada!');
-                        }
-                      }}
-                    >
-                      Adicionar foto
+                    <Button size="sm" onClick={() => historyPhotoInputRef.current?.click()}>
+                      + Adicionar foto(s)
                     </Button>
                   </div>
+                    </>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     {historyPhotos.map((p) => (
                       <div key={p.id} className="relative w-24 h-24 rounded overflow-hidden bg-gray-100 border">
@@ -881,6 +1700,7 @@ export default function AdminPage() {
                         <button
                           type="button"
                           onClick={async () => {
+                            if (p.url) await deleteOldFileIfOurs(p.url, HISTORY_PHOTOS_BUCKET);
                             await supabase.from('club_history_photos').delete().eq('id', p.id);
                             setHistoryPhotos((prev) => prev.filter((x) => x.id !== p.id));
                           }}
@@ -942,6 +1762,11 @@ export default function AdminPage() {
                     </div>
                   </div>
 
+                  <div className="flex items-center gap-3">
+                    <input type="checkbox" id="newsDestaque" checked={newsDestaque} onChange={(e) => setNewsDestaque(e.target.checked)} className="w-5 h-5 rounded" />
+                    <label htmlFor="newsDestaque" className="font-semibold text-gray-700">⭐ Destacar notícia (aparece em primeiro)</label>
+                  </div>
+
                   {newsCategory === 'social' && (
                     <Input
                       label="Link da publicação (Instagram / Facebook / TikTok)"
@@ -951,27 +1776,15 @@ export default function AdminPage() {
                     />
                   )}
 
-                  <Input
-                    label="URL da Imagem"
-                    placeholder="https://exemplo.com/imagem.jpg"
-                    value={newsImage}
-                    onChange={(e) => setNewsImage(e.target.value)}
+                  <ImageUpload
+                    label="Imagem da Notícia"
+                    currentUrl={newsImage}
+                    onUpload={async (file) => {
+                      const url = await uploadNewsImage(file, newsImage);
+                      setNewsImage(url);
+                      return url;
+                    }}
                   />
-
-                  {/* Preview da imagem (suporta Imgur heurístico) */}
-                  {newsImage && (
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-600 mb-2">Pré-visualização da imagem:</p>
-                      <div className="w-full h-40 bg-gray-100 flex items-center justify-center overflow-hidden rounded">
-                        <img
-                          src={guessImgurDirect(newsImage)}
-                          alt="pré-visualização"
-                          className="w-full h-full object-contain"
-                          onError={(e: any) => { e.currentTarget.src = 'https://via.placeholder.com/300?text=Sem+Imagem'; }}
-                        />
-                      </div>
-                    </div>
-                  )}
 
                   <Input
                     label="URL do Vídeo"
@@ -1027,6 +1840,7 @@ export default function AdminPage() {
                           setNewsImage('');
                           setNewsVideo('');
                           setNewsLinkExterno('');
+                          setNewsDestaque(false);
                         }}
                         variant="secondary"
                       >
@@ -1045,7 +1859,7 @@ export default function AdminPage() {
                     <Card key={news.id} className="hover:shadow-lg">
                       <div className="mb-2">
                         <p className="font-semibold text-gray-800 mb-1">{news.titulo}</p>
-                        <p className="text-xs text-gray-500">{news.data_criacao}</p>
+                        <p className="text-xs text-gray-500">{news.data_criacao}{(news as any).destaque ? ' · ⭐ Destaque' : ''}</p>
                       </div>
                       {/* If image present show thumbnail */}
                       {news.imagem_url && (
@@ -1078,7 +1892,7 @@ export default function AdminPage() {
           {activeTab === 'players' && (
             <div className="space-y-6">
               <Card className="shadow-2xl">
-                <h2 className="text-2xl font-bold mb-6 text-gray-800">⚽ Adicionar Novo Jogador</h2>
+                <h2 className="text-2xl font-bold mb-6 text-gray-800">{editingPlayer ? '✏️ Editar Jogador' : '⚽ Adicionar Novo Jogador'}</h2>
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <Input 
@@ -1094,12 +1908,51 @@ export default function AdminPage() {
                     value={playerNumber}
                     onChange={(e) => setPlayerNumber(e.target.value)}
                   />
-                  <Input 
-                    label="Posição" 
-                    placeholder="Atacante"
-                    value={playerPosition}
-                    onChange={(e) => setPlayerPosition(e.target.value)}
-                  />
+                  <div>
+                    <label className="text-sm font-semibold text-gray-700 block mb-1">Posição</label>
+                    <select
+                      value={(() => {
+                        const u = (playerPosition || '').toUpperCase();
+                        if (u.includes('GOL') || u.includes('GOLEIRO')) return 'GOL';
+                        if (u.includes('ZAG') || u.includes('ZAGUEIRO')) return 'ZAG';
+                        if (u.includes('VOL') || u.includes('VOLANTE')) return 'VOL';
+                        if (u.includes('MEI') || u.includes('MEIA')) return 'MEI';
+                        if (u.includes('ATA') || u.includes('ATACANTE') || u === 'AT') return 'ATA';
+                        return playerPosition || 'MEI';
+                      })()}
+                      onChange={(e) => setPlayerPosition(e.target.value)}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-600 bg-white text-gray-900"
+                    >
+                      {(() => {
+                        const LIMITES: Record<string, number> = { GOL: 1, ZAG: 5, VOL: 4, MEI: 6, ATA: 4 };
+                        const norm = (p: string) => {
+                          const u = (p || '').toUpperCase();
+                          if (u.includes('GOL') || u.includes('GOLEIRO')) return 'GOL';
+                          if (u.includes('ZAG') || u.includes('ZAGUEIRO')) return 'ZAG';
+                          if (u.includes('VOL') || u.includes('VOLANTE')) return 'VOL';
+                          if (u.includes('MEI') || u.includes('MEIA')) return 'MEI';
+                          if (u.includes('ATA') || u.includes('ATACANTE') || u === 'AT') return 'ATA';
+                          return u || 'MEI';
+                        };
+                        const counts: Record<string, number> = { GOL: 0, ZAG: 0, VOL: 0, MEI: 0, ATA: 0 };
+                        playersList.forEach((p) => {
+                          const n = norm(p.posicao);
+                          if (n in counts && (p.id !== editingPlayer?.id)) counts[n]++;
+                        });
+                        const currentNorm = norm(playerPosition || '');
+                        return ['GOL', 'ZAG', 'VOL', 'MEI', 'ATA'].map((pos) => {
+                          const atLimit = counts[pos] >= (LIMITES[pos] ?? 99);
+                          const isCurrent = editingPlayer && (currentNorm === pos || norm(editingPlayer.posicao) === pos);
+                          const disabled = atLimit && !isCurrent;
+                          return (
+                            <option key={pos} value={pos} disabled={disabled}>
+                              {pos} {disabled ? `(limite ${LIMITES[pos]} atingido)` : ''}
+                            </option>
+                          );
+                        });
+                      })()}
+                    </select>
+                  </div>
                   <Input 
                     label="Idade" 
                     type="number" 
@@ -1107,6 +1960,45 @@ export default function AdminPage() {
                     value={playerAge}
                     onChange={(e) => setPlayerAge(e.target.value)}
                   />
+                  {editingPlayer && (
+                    <>
+                      <Input label="Gols" type="number" value={String(editPlayerGols)} onChange={(e) => setEditPlayerGols(parseInt(e.target.value) || 0)} />
+                      <Input label="Cartões Amarelos" type="number" value={String(editPlayerCartoesA)} onChange={(e) => setEditPlayerCartoesA(parseInt(e.target.value) || 0)} />
+                      <Input label="Cartões Vermelhos" type="number" value={String(editPlayerCartoesV)} onChange={(e) => setEditPlayerCartoesV(parseInt(e.target.value) || 0)} />
+                      <Input label="Faltas" type="number" value={String(editPlayerFaltas)} onChange={(e) => setEditPlayerFaltas(parseInt(e.target.value) || 0)} />
+                      <ImageUpload
+                        label="Foto (aba Jogos)"
+                        currentUrl={editPlayerFotoUrl}
+                        onUpload={async (file) => {
+                          const p = editingPlayer;
+                          const url = await uploadPlayerPhoto(file, p?.id || crypto.randomUUID(), editPlayerFotoUrl);
+                          setEditPlayerFotoUrl(url);
+                          return url;
+                        }}
+                      />
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center gap-2">
+                          <input type="checkbox" id="editReserva" checked={editPlayerReserva} onChange={(e) => setEditPlayerReserva(e.target.checked)} className="w-5 h-5 rounded" />
+                          <label htmlFor="editReserva" className="font-semibold text-gray-700">Reserva</label>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <span className="font-semibold text-gray-700">Destaque por categoria (máx. 3 por modalidade):</span>
+                          <label className="flex items-center gap-2">
+                            <input type="checkbox" id="editDestaqueCampo" checked={editPlayerDestaqueCampo} onChange={(e) => setEditPlayerDestaqueCampo(e.target.checked)} className="w-5 h-5 rounded" />
+                            <span>Campo</span>
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <input type="checkbox" id="editDestaqueFut7" checked={editPlayerDestaqueFut7} onChange={(e) => setEditPlayerDestaqueFut7(e.target.checked)} className="w-5 h-5 rounded" />
+                            <span>FUT 7</span>
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <input type="checkbox" id="editDestaqueFutsal" checked={editPlayerDestaqueFutsal} onChange={(e) => setEditPlayerDestaqueFutsal(e.target.checked)} className="w-5 h-5 rounded" />
+                            <span>Futsal</span>
+                          </label>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg border-2 border-gray-200">
@@ -1142,9 +2034,16 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <Button size="lg" className="w-full mt-6" onClick={handleAddPlayer}>
-                  ➕ Adicionar Jogador
-                </Button>
+                <div className="flex gap-3 mt-6">
+                  <Button size="lg" className="flex-1" onClick={editingPlayer ? handleSavePlayerFull : handleAddPlayer}>
+                    {editingPlayer ? '💾 Salvar alterações' : '➕ Adicionar Jogador'}
+                  </Button>
+                  {editingPlayer && (
+                    <Button size="lg" variant="secondary" onClick={() => { setEditingPlayer(null); clearPlayerForm(); }}>
+                      Cancelar
+                    </Button>
+                  )}
+                </div>
               </Card>
 
               {/* Players List */}
@@ -1161,6 +2060,10 @@ export default function AdminPage() {
                         <th className="text-left py-3 px-4 font-semibold text-gray-800">Onde joga</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-800">Idade</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-800">Gols</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-800">🟨</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-800">🟥</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-800">Faltas</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-800">Reserva</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-800">Ações</th>
                       </tr>
                     </thead>
@@ -1169,52 +2072,31 @@ export default function AdminPage() {
                         const jogaCampo = player.joga_campo !== false;
                         const jogaFut7 = !!player.joga_fut7;
                         const jogaFutsal = !!player.joga_futsal;
-                        const isEditing = editingPlayerModalidades === player.id;
                         return (
                         <tr key={player.id} className="border-b border-gray-200 hover:bg-red-50">
                           <td className="py-3 px-4 font-bold text-red-600">{player.numero}</td>
                           <td className="py-3 px-4 text-gray-800">{player.nome}</td>
                           <td className="py-3 px-4 text-gray-600">{player.posicao}</td>
                           <td className="py-3 px-4">
-                            {isEditing ? (
-                              <div className="flex flex-wrap gap-3 items-center">
-                                <label className="flex items-center gap-1 cursor-pointer">
-                                  <input type="checkbox" checked={editModalidadesCampo} onChange={(e) => setEditModalidadesCampo(e.target.checked)} className="rounded" />
-                                  Campo
-                                </label>
-                                <label className="flex items-center gap-1 cursor-pointer">
-                                  <input type="checkbox" checked={editModalidadesFut7} onChange={(e) => setEditModalidadesFut7(e.target.checked)} className="rounded" />
-                                  FUT7
-                                </label>
-                                <label className="flex items-center gap-1 cursor-pointer">
-                                  <input type="checkbox" checked={editModalidadesFutsal} onChange={(e) => setEditModalidadesFutsal(e.target.checked)} className="rounded" />
-                                  Futsal
-                                </label>
-                                <Button size="sm" onClick={handleSavePlayerModalidades}>Salvar</Button>
-                                <button type="button" onClick={() => setEditingPlayerModalidades(null)} className="text-gray-500 text-sm hover:underline">Cancelar</button>
-                              </div>
-                            ) : (
-                              <span className="flex flex-wrap gap-1">
-                                {jogaCampo && <span className="px-2 py-0.5 rounded bg-green-100 text-green-800 text-xs">Campo</span>}
-                                {jogaFut7 && <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-xs">FUT 7</span>}
-                                {jogaFutsal && <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 text-xs">Futsal</span>}
-                                {!jogaCampo && !jogaFut7 && !jogaFutsal && <span className="text-gray-400 text-xs">—</span>}
-                                <button type="button" onClick={() => openEditModalidades(player)} className="text-orange-600 text-xs hover:underline">Editar</button>
-                              </span>
-                            )}
+                            <span className="flex flex-wrap gap-1">
+                              {jogaCampo && <span className="px-2 py-0.5 rounded bg-green-100 text-green-800 text-xs">Campo</span>}
+                              {jogaFut7 && <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-xs">FUT 7</span>}
+                              {jogaFutsal && <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 text-xs">Futsal</span>}
+                              {!jogaCampo && !jogaFut7 && !jogaFutsal && <span className="text-gray-400 text-xs">—</span>}
+                            </span>
                           </td>
-                          <td className="py-3 px-4 text-gray-600">{player.idade} anos</td>
-                          <td className="py-3 px-4">
-                            <input 
-                              type="number" 
-                              value={player.gols}
-                              onChange={(e) => handleUpdatePlayerGoals(player.id, parseInt(e.target.value) || 0)}
-                              className="w-16 px-2 py-1 border border-gray-300 rounded"
-                            />
-                          </td>
-                          <td className="py-3 px-4 flex gap-2">
+                          <td className="py-3 px-4 text-gray-600">{player.idade ?? '—'} {player.idade != null ? 'anos' : ''}</td>
+                          <td className="py-3 px-4 text-gray-600">{player.gols ?? 0}</td>
+                          <td className="py-3 px-4">{player.cartoes_amarelos ?? 0}</td>
+                          <td className="py-3 px-4">{player.cartoes_vermelhos ?? 0}</td>
+                          <td className="py-3 px-4">{player.faltas ?? 0}</td>
+                          <td className="py-3 px-4">{player.reserva ? 'Sim' : 'Não'}</td>
+                          <td className="py-3 px-4 flex gap-2 flex-wrap">
+                            <Button size="sm" variant="secondary" onClick={() => openEditPlayer(player)}>
+                              ✏️ Editar
+                            </Button>
                             <Button size="sm" variant="danger" onClick={() => handleDeletePlayer(player.id)}>
-                              🗑️ Deletar
+                              🗑️
                             </Button>
                           </td>
                         </tr>
@@ -1232,59 +2114,82 @@ export default function AdminPage() {
               <Card className="shadow-2xl">
                 <h2 className="text-2xl font-bold mb-6 text-gray-800">🏆 Gerenciar Escalação</h2>
 
-                <div className="grid md:grid-cols-2 gap-6 mb-6">
+                <div className="grid md:grid-cols-4 gap-6 mb-6">
                   <div>
-                    <label className="text-sm font-semibold text-gray-700 block mb-2">Formação</label>
-                    <select className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-600">
-                      <option>4-3-3</option>
-                      <option>4-2-3-1</option>
-                      <option>3-5-2</option>
-                      <option>5-3-2</option>
+                    <label className="text-sm font-semibold text-gray-700 block mb-2">Modalidade</label>
+                    <select
+                      value={lineupModalidade}
+                      onChange={(e) => {
+                        const v = e.target.value as 'campo' | 'fut7' | 'futsal';
+                        setLineupModalidade(v);
+                        const forms = getFormationsForModalidade(v);
+                        setLineupFormacao(forms.includes(lineupFormacao) ? lineupFormacao : forms[0]);
+                        setLineupSlotPlayers({});
+                        setLineupSlotLabels({});
+                      }}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-600 bg-white text-gray-900"
+                    >
+                      <option value="campo">Campo (11)</option>
+                      <option value="fut7">FUT 7 (7)</option>
+                      <option value="futsal">Futsal (5)</option>
                     </select>
                   </div>
-                  <Button size="lg">💾 Salvar Escalação</Button>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-8">
-                  {/* Titulares */}
-                  <div className="bg-green-50 p-6 rounded-lg border-2 border-green-300">
-                    <h3 className="text-xl font-bold mb-4 text-green-800">11 TITULARES</h3>
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {playersList.slice(0, 11).map((player) => (
-                        <div key={player.id} className="flex justify-between items-center bg-white p-3 rounded border border-green-200">
-                          <span className="font-semibold">{player.numero} - {player.nome}</span>
-                          <input 
-                            type="number" 
-                            placeholder="Gols"
-                            defaultValue={0}
-                            className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
-                          />
-                        </div>
+                  <div>
+                    <label className="text-sm font-semibold text-gray-700 block mb-2">Formação</label>
+                    <select
+                      value={lineupFormacao}
+                      onChange={(e) => setLineupFormacao(e.target.value)}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-600 bg-white text-gray-900"
+                    >
+                      {getFormationsForModalidade(lineupModalidade).map((f) => (
+                        <option key={f} value={f}>{f}</option>
                       ))}
-                    </div>
+                    </select>
                   </div>
-
-                  {/* Reservas */}
-                  <div className="bg-blue-50 p-6 rounded-lg border-2 border-blue-300">
-                    <h3 className="text-xl font-bold mb-4 text-blue-800">~20 RESERVAS</h3>
-                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                      {playersList.slice(11).map((player) => (
-                        <div key={player.id} className="flex justify-between items-center bg-white p-3 rounded border border-blue-200">
-                          <span className="font-semibold">{player.numero} - {player.nome}</span>
-                          <input 
-                            type="number" 
-                            placeholder="Gols"
-                            defaultValue={0}
-                            className="w-16 px-2 py-1 border border-gray-300 rounded text-sm"
-                          />
-                        </div>
-                      ))}
-                      {playersList.length < 31 && (
-                        <p className="text-center text-gray-500 py-4">Adicione mais jogadores</p>
-                      )}
-                    </div>
+                  <div>
+                    <label className="text-sm font-semibold text-gray-700 block mb-2">Próxima partida</label>
+                    <input
+                      type="date"
+                      value={lineupProximaPartida}
+                      onChange={(e) => setLineupProximaPartida(e.target.value)}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-600 bg-white text-gray-900"
+                    />
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <Button size="lg" onClick={handleSaveLineup} disabled={lineupSaving}>
+                      {lineupSaving ? 'Salvando...' : '💾 Salvar Escalação'}
+                    </Button>
+                    <Button size="lg" variant="secondary" onClick={() => { setLineupSlotPlayers({}); setLineupSlotLabels({}); }}>
+                      Limpar
+                    </Button>
                   </div>
                 </div>
+                <p className="text-sm text-gray-600 mb-4">
+                  Selecione o jogador em cada posição do campo. Cadastre os jogadores na aba Jogadores e marque em qual modalidade cada um joga.
+                </p>
+
+                {(() => {
+                  const jogamModalidade = playersList
+                    .filter((p) =>
+                      lineupModalidade === 'campo' ? p.joga_campo !== false : lineupModalidade === 'fut7' ? !!p.joga_fut7 : !!p.joga_futsal
+                    )
+                    .sort((a, b) => (a.numero ?? 0) - (b.numero ?? 0))
+                    .map((p) => ({ id: p.id, nome: p.nome, numero: p.numero ?? p.numero_camisa ?? 0 }));
+                  return (
+                    <div className="flex justify-center">
+                      <LineupField
+                        formacao={lineupFormacao}
+                        modalidade={lineupModalidade}
+                        mode="admin"
+                        players={jogamModalidade}
+                        slotPlayers={lineupSlotPlayers}
+                        slotLabels={lineupSlotLabels}
+                        onSlotChange={handleLineupSlotChange}
+                        onLabelChange={handleLineupLabelChange}
+                      />
+                    </div>
+                  );
+                })()}
               </Card>
             </div>
           )}
@@ -1328,68 +2233,128 @@ export default function AdminPage() {
                   />
                 </div>
 
-                {/* Multiple Images input */}
+                {/* Imagens do Produto - upload direto */}
                 <div className="mt-4">
-                  <label className="text-sm font-semibold text-gray-700">Imagens do Produto</label>
-                  <div className="flex gap-2 mt-2">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Imagens do Produto</label>
+                  <div className="flex gap-2 flex-wrap items-center">
                     <input
-                      placeholder="https://exemplo.com/imagem.jpg"
-                      value={newImageUrl}
-                      onChange={(e) => setNewImageUrl(e.target.value)}
-                      className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg"
+                      ref={productImageInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const url = await uploadProductImage(file);
+                          setProductImages((prev) => (prev.length === 0 ? [url] : [...prev, url]));
+                          setProductImage((prev) => prev || url);
+                        } catch (err: any) { showFeedback('error', err?.message || 'Erro ao enviar'); }
+                        e.target.value = '';
+                      }}
                     />
                     <button
-                      onClick={() => {
-                        if (newImageUrl.trim()) {
-                          setProductImages([...productImages, newImageUrl.trim()]);
-                          setNewImageUrl('');
-                        }
-                      }}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg"
-                    >Adicionar</button>
+                      type="button"
+                      onClick={() => productImageInputRef.current?.click()}
+                      className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium"
+                    >
+                      + Adicionar imagem
+                    </button>
                   </div>
-
-                  <div className="mt-3 flex gap-2 overflow-x-auto">
-                    {productImages.length === 0 && productImage && (
-                      <div className="w-36 h-24 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
-                        <img src={guessImgurDirect(productImage)} alt="preview" className="w-full h-full object-contain" onError={(e: any)=>{e.currentTarget.src='https://via.placeholder.com/150?text=Sem+Imagem'}} />
-                      </div>
-                    )}
-                    {productImages.map((img, idx) => (
-                      <div key={idx} className="w-36 h-24 bg-gray-100 rounded overflow-hidden relative">
-                        <img src={guessImgurDirect(img)} alt={`img-${idx}`} className="w-full h-full object-contain" onError={(e: any)=>{e.currentTarget.src='https://via.placeholder.com/150?text=Sem+Imagem'}} />
-                        <button onClick={() => setProductImages(productImages.filter((_, i) => i !== idx))} className="absolute top-1 right-1 bg-white rounded-full px-2 py-1 text-xs">✕</button>
+                  <div className="mt-3 flex gap-2 overflow-x-auto flex-wrap">
+                    {(productImages.length > 0 ? productImages : productImage ? [productImage] : []).map((img, idx) => (
+                      <div key={idx} className="w-36 h-24 bg-gray-100 rounded overflow-hidden relative flex-shrink-0">
+                        <img src={img} alt={`img-${idx}`} className="w-full h-full object-contain" onError={(e: any)=>{e.currentTarget.src='https://via.placeholder.com/150?text=Sem+Imagem'}} />
+                        <button
+                          onClick={async () => {
+                            if (isOurStorageUrl(img, PRODUCTS_BUCKET)) await deleteOldFileIfOurs(img, PRODUCTS_BUCKET);
+                            const next = (productImages.length > 0 ? productImages : productImage ? [productImage] : []).filter((_, i) => i !== idx);
+                            setProductImages(next);
+                            setProductImage(next[0] || '');
+                          }}
+                          className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-700"
+                        >
+                          ✕
+                        </button>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Models / Variants input */}
-                <div className="mt-4">
-                  <label className="text-sm font-semibold text-gray-700">Modelos / Variantes</label>
-                  <div className="flex gap-2 mt-2">
+                {/* Variações do produto (Tamanho, Cor, etc.) */}
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg border-2 border-gray-200">
+                  <label className="text-sm font-semibold text-gray-700 block mb-2">Variações do produto (Tamanho, Cor, etc.)</label>
+                  <p className="text-xs text-gray-500 mb-3">Adicione tipos de variação (ex: Tamanho) e suas opções (P, M, G, GG). O cliente poderá selecionar na loja.</p>
+                  {/* Nova variação */}
+                  <div className="flex flex-wrap gap-2 mb-3">
                     <input
-                      placeholder="Ex: P, M, G ou Modelo A"
-                      value={newModelInput}
-                      onChange={(e) => setNewModelInput(e.target.value)}
-                      className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg"
+                      placeholder="Tipo (ex: Tamanho)"
+                      value={newVariationTipo}
+                      onChange={(e) => setNewVariationTipo(e.target.value)}
+                      className="w-36 px-3 py-2 border-2 border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
+                    />
+                    <input
+                      placeholder="Opção (ex: P, M, G)"
+                      value={newVariationOpcao}
+                      onChange={(e) => setNewVariationOpcao(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addVariationOption())}
+                      className="w-28 px-3 py-2 border-2 border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
                     />
                     <button
                       onClick={() => {
-                        if (newModelInput.trim()) {
-                          setProductModels([...productModels, newModelInput.trim()]);
-                          setNewModelInput('');
+                        if (newVariationTipo.trim() && newVariationOpcao.trim()) {
+                          addVariationOption();
+                        } else if (newVariationTipo.trim()) {
+                          setProductVariations([...productVariations, { tipo: newVariationTipo.trim(), opcoes: [] }]);
+                          setNewVariationTipo('');
                         }
                       }}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg"
-                    >Adicionar</button>
+                      className="px-4 py-2 bg-orange-600 text-white rounded-lg text-sm font-semibold"
+                    >+ Adicionar</button>
                   </div>
-
-                  <div className="mt-2 flex gap-2 flex-wrap">
-                    {productModels.map((m, idx) => (
-                      <div key={idx} className="bg-gray-100 px-3 py-1 rounded flex items-center gap-2">
-                        <span className="text-sm">{m}</span>
-                        <button onClick={() => setProductModels(productModels.filter((_, i) => i !== idx))} className="text-xs">✕</button>
+                  {/* Lista de variações */}
+                  <div className="space-y-3">
+                    {productVariations.map((v, vidx) => (
+                      <div key={vidx} className="bg-white border border-gray-200 rounded p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-gray-800">{v.tipo}</span>
+                          <button onClick={() => setProductVariations(productVariations.filter((_, i) => i !== vidx))} className="text-red-600 text-xs">Remover tipo</button>
+                        </div>
+                        <div className="flex gap-2 flex-wrap">
+                          {v.opcoes.map((op, oidx) => (
+                            <span key={oidx} className="inline-flex items-center gap-1 bg-orange-100 text-orange-800 px-2 py-1 rounded text-sm">
+                              {op}
+                              <button onClick={() => {
+                                const copy = [...productVariations];
+                                copy[vidx] = { ...copy[vidx], opcoes: copy[vidx].opcoes.filter((_, i) => i !== oidx) };
+                                setProductVariations(copy);
+                              }} className="hover:text-red-600">×</button>
+                            </span>
+                          ))}
+                          {editingVariationIdx === vidx ? (
+                            <>
+                              <input
+                                autoFocus
+                                placeholder="Nova opção"
+                                className="w-24 px-2 py-1 border rounded text-sm text-gray-900 bg-white"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    const val = (e.target as HTMLInputElement).value.trim();
+                                    if (val) {
+                                      const copy = [...productVariations];
+                                      copy[vidx] = { ...copy[vidx], opcoes: [...copy[vidx].opcoes, val] };
+                                      setProductVariations(copy);
+                                      setEditingVariationIdx(null);
+                                    }
+                                  }
+                                }}
+                                onBlur={() => setEditingVariationIdx(null)}
+                              />
+                            </>
+                          ) : (
+                            <button onClick={() => setEditingVariationIdx(vidx)} className="text-orange-600 text-xs border border-orange-300 rounded px-2 py-1">+ Opção</button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1457,6 +2422,7 @@ export default function AdminPage() {
                         setProductStock('');
                         setProductCategory('camiseta');
                         setProductDestaque(false);
+                        setProductVariations([]);
                       }}
                       variant="secondary"
                     >
@@ -1499,10 +2465,12 @@ export default function AdminPage() {
 
                           <p className="text-sm text-gray-600 mb-3 line-clamp-2">{product.descricao}</p>
 
-                          {product.modelos && product.modelos.length > 0 && (
+                          {(product.variacoes && product.variacoes.length > 0) && (
                             <div className="mb-3 flex gap-2 flex-wrap">
-                              {product.modelos.map((m: string, i: number) => (
-                                <span key={i} className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">{m}</span>
+                              {product.variacoes.map((v: ProductVariation, i: number) => (
+                                <span key={i} className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs">
+                                  {v.tipo}: {v.opcoes.join(', ')}
+                                </span>
                               ))}
                             </div>
                           )}
@@ -1548,8 +2516,21 @@ export default function AdminPage() {
                 )}
               </Card>
             </div>
-          )}        </div>
+          )}
+        </div>
       </main>
+      {confirmModal && (
+        <ConfirmModal
+          open={!!confirmModal}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmLabel="Confirmar"
+          cancelLabel="Cancelar"
+          variant="danger"
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
     </>
   );
 }

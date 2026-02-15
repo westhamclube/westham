@@ -37,8 +37,21 @@ export function NewsCard({ news, onUpdate, onDelete, onEdit }: NewsCardProps) {
     return null;
   })();
 
+  const categoriaLabel = (() => {
+    const c = (localNews.categoria || localNews.category || '').toLowerCase();
+    if (c === 'general') return 'Geral';
+    if (c === 'match') return 'Partida';
+    if (c === 'player') return 'Jogador';
+    if (c === 'academy') return 'Academia';
+    if (c === 'social') return 'Redes sociais';
+    return c || 'Geral';
+  })();
+
+  const canLike = user && ['usuário', 'sócio', 'jogador'].includes(user.role);
+  const canComment = user && ['sócio', 'jogador'].includes(user.role);
+
   const handleLikeNews = () => {
-    if (!user || user.role !== 'sócio') return;
+    if (!user || !canLike) return;
     
     const usuarios_curtidas = localNews.usuarios_curtidas || [];
     const jaGostou = usuarios_curtidas.includes(user.id);
@@ -56,7 +69,7 @@ export function NewsCard({ news, onUpdate, onDelete, onEdit }: NewsCardProps) {
   };
 
   const handleAddComment = () => {
-    if (!user || user.role !== 'sócio' || !newComment.trim()) return;
+    if (!user || !canComment || !newComment.trim()) return;
 
     const comentarios = localNews.comentarios || [];
     const novoComentario: NewsComment = {
@@ -80,7 +93,7 @@ export function NewsCard({ news, onUpdate, onDelete, onEdit }: NewsCardProps) {
   };
 
   const handleLikeComment = (commentId: string) => {
-    if (!user || user.role !== 'sócio') return;
+    if (!user || !canComment) return;
 
     const comentarios = localNews.comentarios || [];
     const updated = {
@@ -107,65 +120,67 @@ export function NewsCard({ news, onUpdate, onDelete, onEdit }: NewsCardProps) {
   };
 
   return (
-    <Card className="hover:shadow-lg transition">
-      <div className="mb-3 flex items-center gap-2">
+    <Card className="hover:shadow-lg transition bg-neutral-900 border border-neutral-800">
+      <div className="mb-3 flex items-center gap-2 flex-wrap">
         {modalidadeLabel && (
-          <span className="inline-block bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-semibold">
+          <span className="inline-block bg-orange-500/20 text-orange-300 px-3 py-1 rounded-full text-xs font-semibold">
             {modalidadeLabel}
           </span>
         )}
-        <span className="inline-block bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-semibold">
-          {(localNews.category || localNews.categoria) === 'social' ? 'Redes sociais' : (localNews.category || localNews.categoria)}
+        <span className="inline-block bg-neutral-700 text-neutral-200 px-3 py-1 rounded-full text-xs font-semibold">
+          {categoriaLabel}
         </span>
       </div>
       
-      <h3 className="text-lg font-bold text-gray-800 mb-2">{localNews.titulo}</h3>
-      <p className="text-gray-600 text-sm mb-3">{localNews.data}</p>
+      <h3 className="text-lg font-bold text-neutral-50 mb-2">{localNews.titulo}</h3>
+      <p className="text-neutral-400 text-sm mb-3">{localNews.data}</p>
       
       {/* Image Preview */}
       {localNews.imagem_url && (
-        <div className="w-full h-40 bg-gray-100 mb-3 rounded overflow-hidden flex items-center justify-center">
+        <div className="w-full aspect-video bg-neutral-800 mb-3 rounded-lg overflow-hidden flex items-center justify-center">
           <img 
             src={localNews.imagem_url} 
             alt={localNews.titulo}
-            className="w-full h-full object-contain"
+            className="w-full h-full object-contain object-center"
+            loading="lazy"
+            decoding="async"
             onError={(e: any) => { e.currentTarget.src = 'https://via.placeholder.com/300?text=Sem+Imagem'; }}
           />
         </div>
       )}
 
-      <p className="text-gray-700 mb-4">{localNews.conteudo}</p>
+      <p className="text-neutral-300 text-sm mb-4 line-clamp-3">{localNews.conteudo}</p>
 
       {localNews.link_externo && (
         <a
           href={localNews.link_externo}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-block mt-2 text-orange-600 font-semibold hover:underline"
+          className="inline-block mt-2 text-orange-400 font-semibold hover:text-orange-300 hover:underline"
         >
           Conferir publicação →
         </a>
       )}
 
       {/* Likes and Comments Section */}
-      <div className="border-t pt-3 space-y-2">
+      <div className="border-t border-neutral-700 pt-3 space-y-2">
         <div className="flex gap-4 text-sm">
           <button
             onClick={handleLikeNews}
-            disabled={!user || user.role !== 'sócio'}
+            disabled={!canLike}
             className={`flex items-center gap-1 font-semibold transition ${
-              !user || user.role !== 'sócio'
-                ? 'text-gray-400 cursor-not-allowed'
+              !canLike
+                ? 'text-neutral-500 cursor-not-allowed'
                 : localNews.usuarios_curtidas?.includes(user?.id)
-                ? 'text-red-600'
-                : 'text-gray-600 hover:text-red-600'
+                ? 'text-red-400'
+                : 'text-neutral-400 hover:text-red-400'
             }`}
           >
             ❤️ {localNews.curtidas || 0}
           </button>
           <button
             onClick={() => setShowComments(!showComments)}
-            className="flex items-center gap-1 font-semibold text-gray-600 hover:text-blue-600 transition"
+            className="flex items-center gap-1 font-semibold text-neutral-400 hover:text-orange-400 transition"
           >
             💬 {localNews.comentarios?.length || 0}
           </button>
@@ -187,7 +202,7 @@ export function NewsCard({ news, onUpdate, onDelete, onEdit }: NewsCardProps) {
       {/* Comments Section */}
       {showComments && (
         <div className="mt-4 border-t pt-4 space-y-3">
-          {user && user.role === 'sócio' && (
+          {canComment && (
             <div className="space-y-2">
               <Input
                 placeholder="Adicione um comentário..."
@@ -205,29 +220,34 @@ export function NewsCard({ news, onUpdate, onDelete, onEdit }: NewsCardProps) {
           )}
 
           {!user && (
-            <p className="text-sm text-gray-500 text-center">Faça login como sócio para comentar</p>
+            <p className="text-sm text-neutral-500 text-center">Faça login para curtir e comentar.</p>
           )}
-          {user && user.role !== 'sócio' && (
-            <p className="text-sm text-gray-500 text-center">
-              Somente sócios ativos podem comentar e curtir notícias.
+          {user && !canLike && (
+            <p className="text-sm text-neutral-500 text-center">
+              Faça login como usuário, sócio ou jogador para interagir com as notícias.
+            </p>
+          )}
+          {user && canLike && !canComment && (
+            <p className="text-sm text-neutral-500 text-center">
+              Você pode curtir notícias. Para comentar, torne-se sócio ou jogador.
             </p>
           )}
 
           {/* Comments List */}
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {localNews.comentarios?.map((comment: NewsComment) => (
-              <div key={comment.id} className="bg-gray-50 p-3 rounded border border-gray-200">
+              <div key={comment.id} className="bg-neutral-800 p-3 rounded-lg border border-neutral-700">
                 <div className="flex justify-between items-start mb-1">
-                  <p className="text-sm font-semibold text-gray-800">{comment.user_nome}</p>
-                  <p className="text-xs text-gray-500">{comment.data_criacao}</p>
+                  <p className="text-sm font-semibold text-neutral-100">{comment.user_nome}</p>
+                  <p className="text-xs text-neutral-500">{comment.data_criacao}</p>
                 </div>
-                <p className="text-sm text-gray-700 mb-2">{comment.conteudo}</p>
+                <p className="text-sm text-neutral-300 mb-2">{comment.conteudo}</p>
                 <button
                   onClick={() => handleLikeComment(comment.id)}
                   className={`text-xs font-semibold transition ${
                     comment.usuarios_curtidas?.includes(user?.id || '')
-                      ? 'text-red-600'
-                      : 'text-gray-600 hover:text-red-600'
+                      ? 'text-red-400'
+                      : 'text-neutral-400 hover:text-red-400'
                   }`}
                 >
                   ❤️ {comment.curtidas || 0}

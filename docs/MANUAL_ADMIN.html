@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manual do Painel Admin - Sport Club Westham</title>
+  <style>
+    @media print { body { margin: 0; } .page-break { page-break-before: always; } }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; color: #333; line-height: 1.6; }
+    h1 { color: #c8102e; border-bottom: 3px solid #f97316; padding-bottom: 10px; font-size: 28px; }
+    h2 { color: #1a1a1a; margin-top: 32px; font-size: 20px; }
+    h3 { color: #444; margin-top: 20px; font-size: 16px; }
+    p { margin: 12px 0; }
+    ul { margin: 8px 0; padding-left: 24px; }
+    li { margin: 6px 0; }
+    .step { background: #f8f9fa; padding: 12px 16px; margin: 12px 0; border-left: 4px solid #f97316; border-radius: 0 8px 8px 0; }
+    .tip { background: #fff7ed; padding: 12px; border-radius: 8px; margin: 12px 0; font-size: 14px; }
+    .header-info { background: #1a1a1a; color: white; padding: 20px; border-radius: 8px; margin-bottom: 24px; }
+  </style>
+</head>
+<body>
+  <div class="header-info">
+    <h1 style="color:white;border:none;margin:0;">Manual do Painel Administrativo</h1>
+    <p style="margin:8px 0 0 0;color:#f97316;">Sport Club Westham — App Oficial</p>
+  </div>
+
+  <h2>1. Acesso ao Painel</h2>
+  <p>O painel admin está em <strong>/admin</strong>. Apenas usuários com perfil <strong>Admin</strong> podem acessar. Faça login com suas credenciais de administrador.</p>
+
+  <h2>2. Usuários</h2>
+  <p>Gerencia os níveis de acesso dos usuários cadastrados.</p>
+  <ul>
+    <li><strong>Usuário</strong>: Acesso básico (notícias, vitórias).</li>
+    <li><strong>Sócio</strong>: Acesso a escalações e conteúdo exclusivo.</li>
+    <li><strong>Jogador</strong>: Permissão de jogador.</li>
+    <li><strong>Admin</strong>: Controle total do painel.</li>
+  </ul>
+  <p><strong>Passos:</strong> Selecione no dropdown &quot;Promover Para&quot; o novo nível e clique em <strong>Confirmar</strong>.</p>
+  
+  <h3>Moderadores de Caixa</h3>
+  <p>Defina até 2 pessoas (além de você) com acesso ao fluxo de caixa. Selecione o usuário e clique em <strong>Adicionar moderador</strong>.</p>
+
+  <h2 class="page-break">3. Mensagens</h2>
+  <p>Visualize e gerencie mensagens enviadas pelo site, divididas em:</p>
+  <ul>
+    <li><strong>Suporte</strong>: Defeitos, dúvidas gerais.</li>
+    <li><strong>Marcar Amistoso</strong>: Solicitações de amistoso.</li>
+    <li><strong>Projetos</strong>: Inscrições em projetos (escolinha, peneira, etc.).</li>
+  </ul>
+  <p>Você pode marcar como lido e excluir mensagens.</p>
+
+  <h2>4. Notícias</h2>
+  <p>Publique e edite notícias que aparecem no site.</p>
+  <div class="step"><strong>Publicar nova notícia:</strong> Preencha título, conteúdo, categoria, modalidade. Adicione imagem e/ou vídeo (YouTube). Marque <strong>Destacar notícia</strong> para ela aparecer em primeiro. Clique em <strong>Publicar</strong>.</div>
+  <p><strong>Editar/Excluir:</strong> Na lista à direita, use os botões <strong>Editar</strong> ou <strong>Deletar</strong> em cada notícia.</p>
+
+  <h2>5. Jogadores</h2>
+  <p>Cadastre jogadores do clube com número, posição e modalidades (Campo, FUT 7, Futsal).</p>
+  <ul>
+    <li><strong>Destaque por categoria</strong>: Marque até 3 jogadores como destaque em cada modalidade (aparecem na página de jogos).</li>
+    <li><strong>Onde joga</strong>: Marque Campo, FUT 7 e/ou Futsal.</li>
+    <li><strong>Gols, cartões, etc.</strong>: Atualize estatísticas pelo formulário de edição.</li>
+  </ul>
+
+  <h2 class="page-break">6. Escalação</h2>
+  <p>Monte o desenho do time para cada modalidade (Campo, FUT 7, Futsal).</p>
+  <div class="step">
+    <strong>Passo a passo:</strong><br>
+    1. Selecione a modalidade (Campo, FUT 7 ou Futsal).<br>
+    2. Escolha a formação (4-3-3, 4-4-2, etc.).<br>
+    3. Arraste ou selecione jogadores para cada posição no campo.<br>
+    4. Opcional: personalize o label da posição (ex: Volante, Ala).<br>
+    5. Defina a data da próxima partida.<br>
+    6. Clique em <strong>Salvar Escalação</strong>.
+  </div>
+  <p>A escalação aparece na página pública /jogos/[modalidade].</p>
+
+  <h2>7. Loja</h2>
+  <p>Gerencie produtos da loja oficial.</p>
+  <ul>
+    <li><strong>Adicionar produto</strong>: Nome, categoria, preço, estoque, imagens, descrição.</li>
+    <li><strong>Variações</strong>: Tamanho (P, M, G), Cor, etc. Adicione tipo e opções.</li>
+    <li><strong>Destaque</strong>: Marque para aparecer entre os 4 produtos na página inicial.</li>
+    <li><strong>Desconto sócio</strong>: Ative e defina % de desconto para sócios.</li>
+  </ul>
+
+  <h2>8. Projetos</h2>
+  <p>Cadastre projetos (escolinha, peneira, ação social).</p>
+  <ul>
+    <li>Título, tipo, descrição, imagem de capa, vídeo.</li>
+    <li><strong>Status</strong>: Ativo, Inscrições abertas ou Encerrado.</li>
+    <li><strong>Destaque</strong>: Aparece na página inicial.</li>
+  </ul>
+
+  <h2 class="page-break">9. Próximos Jogos</h2>
+  
+  <h3>Estatísticas por categoria</h3>
+  <p>Preencha manualmente os dados exibidos na página de jogos de cada modalidade:</p>
+  <ul>
+    <li>Último jogo (ex: Westham 3 x 1 Adversário)</li>
+    <li>Gols total, Vitórias, Derrotas</li>
+  </ul>
+  <p>Clique em <strong>Salvar Campo</strong> (ou FUT 7 / Futsal) para cada modalidade.</p>
+
+  <h3>Cadastrar partidas</h3>
+  <p>Adicione as próximas partidas: data/hora, adversário, local, modalidade e tipo (amistoso/campeonato). As partidas aparecem na home e nas páginas de jogos.</p>
+
+  <h2>10. História</h2>
+  <p>Edite o texto e fotos da página História do Clube. É possível adicionar blocos de conteúdo e galeria de fotos.</p>
+
+  <h2>11. Caixa</h2>
+  <p>O botão <strong>Caixa</strong> leva à página /caixa (fluxo de caixa). Lá você pode registrar entradas e saídas, filtrar por período e gerar PDF do extrato.</p>
+
+  <div class="tip">
+    <strong>💡 Dica:</strong> Todas as ações de exclusão (notícia, jogador, produto, projeto, partida, mensagem) mostram um modal de confirmação antes de excluir.
+  </div>
+
+  <p style="margin-top:40px;font-size:12px;color:#666;">Sport Club Westham — Documentação do App — Manual do Administrador</p>
+  
+  <div class="tip" style="margin-top:24px;">
+    <strong>📄 Gerar PDF:</strong> Pressione <strong>Ctrl+P</strong> (ou Cmd+P no Mac), escolha "Salvar como PDF" e clique em Salvar.
+  </div>
+</body>
+</html>

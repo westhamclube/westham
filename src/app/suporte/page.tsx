@@ -26,6 +26,7 @@ export default function SuportePage() {
         telefone: telefone.trim(),
         email: email.trim(),
         mensagem: mensagem.trim(),
+        tipo: 'suporte',
       });
       if (err) throw err;
       setSent(true);

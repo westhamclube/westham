@@ -36,6 +36,7 @@ ${descricao}`;
         telefone: telefone.trim(),
         email: email.trim(),
         mensagem,
+        tipo: 'suporte',
       });
 
       if (err) throw err;

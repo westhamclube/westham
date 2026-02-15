@@ -35,9 +35,9 @@ export default function DashboardPage() {
     async function loadFeatured() {
       try {
         const [newsRes, productsRes, projectsRes] = await Promise.all([
-          supabase.from('news').select('*').order('created_at', { ascending: false }).limit(4),
+          supabase.from('news').select('*').order('destaque', { ascending: false }).order('created_at', { ascending: false }).limit(4),
           supabase.from('store_products').select('*').eq('ativo', true).eq('destaque', true).order('created_at', { ascending: false }).limit(4),
-          supabase.from('projects').select('*').order('created_at', { ascending: false }).limit(4),
+          supabase.from('projects').select('*').order('destaque', { ascending: false }).order('created_at', { ascending: false }).limit(4),
         ]);
 
         if (!newsRes.error && newsRes.data) {
@@ -139,8 +139,10 @@ export default function DashboardPage() {
     setCart(cart.filter(item => item.id !== productId));
   };
 
+  const hasDiscountEligibility = user?.role === 'sócio' || user?.role === 'jogador';
+
   const getCartItemFinalPrice = (item: { preco: number; quantidade: number; tem_desconto_socio?: boolean; desconto_socio?: number }) => {
-    const hasSocioDiscount = user?.role === 'sócio' && item.tem_desconto_socio && item.desconto_socio;
+    const hasSocioDiscount = hasDiscountEligibility && item.tem_desconto_socio && item.desconto_socio;
     const unit = hasSocioDiscount && item.desconto_socio
       ? item.preco * (1 - item.desconto_socio / 100)
       : item.preco;
@@ -153,7 +155,7 @@ export default function DashboardPage() {
       return;
     }
     const items = cart.map((item) => {
-      const hasSocioDiscount = user?.role === 'sócio' && item.tem_desconto_socio && item.desconto_socio;
+      const hasSocioDiscount = hasDiscountEligibility && item.tem_desconto_socio && item.desconto_socio;
       const precoUnit = hasSocioDiscount && item.desconto_socio
         ? item.preco * (1 - item.desconto_socio / 100)
         : item.preco;
@@ -211,8 +213,8 @@ export default function DashboardPage() {
           {/* HOME TAB */}
           {activeTab === 'home' && (
             <>
-              {/* Layout para USUÁRIO */}
-              {user.role === 'usuário' && (
+              {/* Layout para USUÁRIO, SÓCIO e JOGADOR: próximos jogos, notícias e loja */}
+              {user.role !== 'admin' && (
                 <div className="grid lg:grid-cols-3 gap-8">
                   {/* Coluna principal: 4 notícias, 4 produtos, 4 projetos */}
                   <div className="lg:col-span-2 space-y-8">
@@ -260,7 +262,7 @@ export default function DashboardPage() {
                       ) : (
                         <div className="grid sm:grid-cols-2 gap-4">
                           {featuredProducts.map((p) => {
-                            const finalPrice = user?.role === 'sócio' && p.tem_desconto_socio && p.desconto_socio
+                            const finalPrice = hasDiscountEligibility && p.tem_desconto_socio && p.desconto_socio
                               ? p.preco * (1 - p.desconto_socio / 100) : p.preco;
                             return (
                               <Link key={p.id} href="/dashboard/loja">
@@ -269,7 +271,7 @@ export default function DashboardPage() {
                                     <img
                                       src={p.imagem_url}
                                       alt={p.nome}
-                                      className="w-full h-full object-cover"
+                                      className="w-full h-full object-contain"
                                       onError={(e) => { (e.currentTarget as HTMLImageElement).src = 'https://via.placeholder.com/200?text=Produto'; }}
                                     />
                                   </div>
@@ -434,17 +436,6 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              {/* Layout para SÓCIO */}
-              {user.role === 'sócio' && (
-                <div className="space-y-8">
-                  <Card className="bg-orange-600 text-white p-6">
-                    <h3 className="font-bold text-lg">Conteúdo exclusivo de sócio</h3>
-                    <p className="text-orange-100 text-sm mt-1">Acesso VIP ao clube</p>
-                  </Card>
-                  <p className="text-neutral-500 text-sm">Escalações, estatísticas e próximas partidas serão exibidas aqui em breve.</p>
-                </div>
-              )}
-
               {/* Layout para ADMIN */}
               {user.role === 'admin' && (
                 <div className="space-y-8">
@@ -468,10 +459,10 @@ export default function DashboardPage() {
             <div className="grid lg:grid-cols-4 gap-8">
               {/* Products Grid (sem itens mockados) */}
               <div className="lg:col-span-3">
-                <h2 className="text-2xl font-bold mb-4 text-neutral-800">Loja Oficial Westham</h2>
+                <h2 className="text-2xl font-bold mb-4 text-neutral-800">Loja Westham</h2>
                 <Card className="p-6 text-neutral-600 text-sm">
                   A experiência completa de compra ficará disponível aqui em breve. Enquanto isso,
-                  acesse a aba <strong>Loja Oficial</strong> no menu para ver os produtos cadastrados
+                  acesse a aba <strong>Loja</strong> no menu para ver os produtos cadastrados
                   pelo administrador.
                 </Card>
               </div>
@@ -505,7 +496,7 @@ export default function DashboardPage() {
                             </div>
                             <div className="flex justify-between items-center text-sm">
                               <span className="text-gray-600">
-                                {item.quantidade}x R$ {(user?.role === 'sócio' && item.tem_desconto_socio && item.desconto_socio
+                                {item.quantidade}x R$ {(hasDiscountEligibility && item.tem_desconto_socio && item.desconto_socio
                                   ? item.preco * (1 - (item.desconto_socio ?? 0) / 100)
                                   : item.preco
                                 ).toFixed(2)}

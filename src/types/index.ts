@@ -1,5 +1,39 @@
 // Tipos de usuário
-export type UserRole = 'usuário' | 'sócio' | 'jogador' | 'admin';
+export type UserRole = 'usuário' | 'sócio' | 'jogador' | 'admin' | 'moderador';
+
+// Categorias de movimentação de caixa
+export type CashFlowCategory =
+  | 'patrocinio'
+  | 'despesa_jogadores'
+  | 'despesa_locomocao'
+  | 'medicamentos'
+  | 'arbitragem'
+  | 'material_esportivo'
+  | 'alimentacao'
+  | 'uniformes'
+  | 'outros';
+
+export type CashFlowTipo = 'entrada' | 'saida';
+
+export interface CashFlowTransaction {
+  id: string;
+  tipo: CashFlowTipo;
+  categoria: CashFlowCategory;
+  descricao: string;
+  valor: number;
+  data_movimento: string;
+  created_by?: string;
+  created_at: string;
+}
+
+export interface CashFlowModerator {
+  id: string;
+  user_id: string;
+  added_by: string;
+  created_at: string;
+  user_nome?: string;
+  user_email?: string;
+}
 
 // Interface do usuário
 export interface User {
@@ -71,6 +105,12 @@ export interface News {
   comentarios?: NewsComment[];
 }
 
+/** Variação do produto: tipo (ex: Tamanho, Cor) e opções (ex: P, M, G, GG) */
+export interface ProductVariation {
+  tipo: string;
+  opcoes: string[];
+}
+
 // Interface de produto da loja
 export interface Product {
   id: string;
@@ -79,7 +119,9 @@ export interface Product {
   preco: number;
   imagem_url: string; // fallback main image
   imagens?: string[]; // gallery images (admin can add multiple)
-  modelos?: string[]; // modelos/variantes do produto (ex: P, M, G, L; ou modelos de uniforme)
+  modelos?: string[]; // modelos/variantes (legado; usar variacoes)
+  /** Variações flexíveis: Tamanho (P,M,G,GG), Cor (Bordô,Azul), etc. */
+  variacoes?: ProductVariation[];
   categoria: string;
   estoque: number;
   data_criacao: string;

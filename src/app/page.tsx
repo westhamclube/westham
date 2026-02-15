@@ -29,6 +29,7 @@ export default function HomePage() {
       const { data, error } = await supabase
         .from('news')
         .select('*')
+        .order('destaque', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(6);
 
@@ -338,14 +339,26 @@ export default function HomePage() {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {newsList.map((news) => {
               const modalidadeLabel = news.modalidade === 'fut7' ? 'FUT 7' : news.modalidade === 'futsal' ? 'Futsal' : news.modalidade === 'campo' ? 'Campo' : null;
+              const catLabel = news.categoria === 'general' ? 'Geral' : news.categoria === 'match' ? 'Partida' : news.categoria === 'player' ? 'Jogador' : news.categoria === 'academy' ? 'Academia' : news.categoria === 'social' ? 'Redes sociais' : news.categoria || 'Geral';
+              const conteudoLongo = (news.conteudo || '').length > 250;
               return (
                 <Card
                   key={news.id}
-                  className="hover:shadow-xl transition bg-neutral-900 border border-neutral-800"
+                  className="hover:shadow-xl transition bg-neutral-900 border border-neutral-800 flex flex-col"
                 >
+                  {news.imagem_url && (
+                    <div className="w-full aspect-video mb-3 rounded-lg overflow-hidden bg-neutral-800 flex items-center justify-center">
+                      <img
+                        src={news.imagem_url}
+                        alt={news.titulo}
+                        className="w-full h-full object-contain object-center"
+                        onError={(e: any) => { e.currentTarget.src = 'https://via.placeholder.com/400?text=Sem+Imagem'; }}
+                      />
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2 mb-2">
                     <span className="inline-block bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded text-xs font-semibold">
-                      {news.categoria}
+                      {catLabel}
                     </span>
                     {modalidadeLabel && (
                       <span className="inline-block bg-neutral-700 text-neutral-200 px-2 py-0.5 rounded text-xs font-semibold">
@@ -357,7 +370,15 @@ export default function HomePage() {
                   <p className="text-neutral-400 text-xs mb-2">
                     {news.data_criacao ? new Date(news.data_criacao).toLocaleDateString('pt-BR') : ''}
                   </p>
-                  <p className="text-neutral-200 text-sm line-clamp-3">{news.conteudo}</p>
+                  <p className="text-neutral-200 text-sm line-clamp-5 flex-1">{news.conteudo}</p>
+                  {conteudoLongo && (
+                    <Link
+                      href={`/noticias/${news.id}`}
+                      className="inline-block mt-3 text-orange-400 font-semibold hover:text-orange-300 hover:underline text-sm"
+                    >
+                      Ver mais →
+                    </Link>
+                  )}
                 </Card>
               );
             })}
@@ -383,11 +404,11 @@ export default function HomePage() {
               {featuredProducts.map((p: any) => (
                 <Link key={p.id} href={user ? '/dashboard/loja' : '/loja'}>
                   <Card className="h-full bg-neutral-900 border border-neutral-800 hover:border-orange-500/60 transition overflow-hidden">
-                    <div className="aspect-square bg-neutral-800 mb-2 overflow-hidden">
+                    <div className="aspect-square bg-neutral-800 mb-2 overflow-hidden flex items-center justify-center">
                       <img
                         src={p.imagem_url || 'https://via.placeholder.com/200?text=Produto'}
                         alt={p.nome}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                         onError={(e: any) => { e.currentTarget.src = 'https://via.placeholder.com/200?text=Sem+Imagem'; }}
                       />
                     </div>
