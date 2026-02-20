@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Buscar perfil estendido na tabela `profiles`
         const { data: profile, error } = await supabase
           .from('profiles')
-          .select('id, full_name, first_name, last_name, role, cpf, telefone, avatar_url, created_at, instagram_url, facebook_url, tiktok_url')
+          .select('id, full_name, first_name, last_name, role, cpf, telefone, avatar_url, created_at, instagram_url, facebook_url, tiktok_url, cep, logradouro, numero, bairro, data_nascimento')
           .eq('id', authUser.id)
           .single();
 
@@ -59,6 +59,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           instagram_url: profile?.instagram_url,
           facebook_url: profile?.facebook_url,
           tiktok_url: profile?.tiktok_url,
+          cep: profile?.cep,
+          logradouro: profile?.logradouro,
+          numero: profile?.numero,
+          bairro: profile?.bairro,
+          data_nascimento: profile?.data_nascimento,
         };
 
         setUser(appUser);
@@ -195,6 +200,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           cpf: data.cpf,
           telefone: data.telefone,
           role: 'usuário',
+          cep: data.cep || null,
+          logradouro: data.logradouro || null,
+          numero: data.numero || null,
+          bairro: data.bairro || null,
+          data_nascimento: data.data_nascimento || null,
         },
         {
           onConflict: 'id',

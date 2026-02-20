@@ -64,3 +64,14 @@ ${lines.join('\n')}
 
 Quero personalizar/confirmar meu pedido pelo WhatsApp.`;
 }
+
+/** Mensagem para notificar suporte sobre interesse em ser sócio (abre no WhatsApp do suporte). */
+export function buildInteresseSocioMessage(nome: string, email: string, telefone: string): string {
+  return `Olá! Uma pessoa demonstrou *interesse em ser sócio* do Sport Club Westham e já se cadastrou no site.
+
+*Nome:* ${nome}
+*E-mail:* ${email}
+*Telefone:* ${telefone}
+
+Entre em contato para dar continuidade ao processo de adesão.`;
+}

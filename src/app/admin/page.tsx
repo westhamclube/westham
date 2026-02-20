@@ -25,7 +25,6 @@ import {
   isOurStorageUrl,
 } from '@/lib/storage';
 import { ImageUpload } from '@/components/ImageUpload';
-import { LineupField, getFormationsForModalidade } from '@/components/LineupField';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import type { News, Product, ProductVariation, User, NewsModalidade } from '@/types';
 
@@ -69,7 +68,7 @@ export default function AdminPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'news' | 'players' | 'lineup' | 'ranks' | 'shop' | 'projects' | 'suporte' | 'historia' | 'jogos'>('ranks');
+  const [activeTab, setActiveTab] = useState<'news' | 'players' | 'ranks' | 'shop' | 'projects' | 'suporte' | 'historia' | 'jogos'>('ranks');
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   
@@ -104,20 +103,17 @@ export default function AdminPage() {
   const [editPlayerCartoesV, setEditPlayerCartoesV] = useState<number>(0);
   const [editPlayerFaltas, setEditPlayerFaltas] = useState<number>(0);
   const [editPlayerReserva, setEditPlayerReserva] = useState(false);
-  const [editPlayerDestaqueCampo, setEditPlayerDestaqueCampo] = useState(false);
-  const [editPlayerDestaqueFut7, setEditPlayerDestaqueFut7] = useState(false);
-  const [editPlayerDestaqueFutsal, setEditPlayerDestaqueFutsal] = useState(false);
   const [editPlayerFotoUrl, setEditPlayerFotoUrl] = useState('');
+  const [editPlayerGolsCampo, setEditPlayerGolsCampo] = useState(0);
+  const [editPlayerGolsFut7, setEditPlayerGolsFut7] = useState(0);
+  const [editPlayerGolsFutsal, setEditPlayerGolsFutsal] = useState(0);
+  const [editPlayerAssistCampo, setEditPlayerAssistCampo] = useState(0);
+  const [editPlayerAssistFut7, setEditPlayerAssistFut7] = useState(0);
+  const [editPlayerAssistFutsal, setEditPlayerAssistFutsal] = useState(0);
+  const [editPlayerMelhorGoleiroCampo, setEditPlayerMelhorGoleiroCampo] = useState(false);
+  const [editPlayerMelhorGoleiroFut7, setEditPlayerMelhorGoleiroFut7] = useState(false);
+  const [editPlayerMelhorGoleiroFutsal, setEditPlayerMelhorGoleiroFutsal] = useState(false);
   const [playersList, setPlayersList] = useState<any[]>([]);
-
-  // Lineup states
-  const [lineupModalidade, setLineupModalidade] = useState<'campo' | 'fut7' | 'futsal'>('campo');
-  const [lineupFormacao, setLineupFormacao] = useState('4-3-3');
-  const [formationTemplates, setFormationTemplates] = useState<{ nome: string; linhas?: number[] }[]>([]);
-  const [lineupProximaPartida, setLineupProximaPartida] = useState('');
-  const [lineupSaving, setLineupSaving] = useState(false);
-  const [lineupSlotPlayers, setLineupSlotPlayers] = useState<Record<string, { id: string; nome: string; numero: number }>>({});
-  const [lineupSlotLabels, setLineupSlotLabels] = useState<Record<string, string>>({});
 
   // Ranks states
   const [rankRequests, setRankRequests] = useState<User[]>([]);
@@ -147,7 +143,7 @@ export default function AdminPage() {
   const productImageInputRef = useRef<HTMLInputElement>(null);
 
   const [supportMessages, setSupportMessages] = useState<any[]>([]);
-  const [supportSubTab, setSupportSubTab] = useState<'suporte' | 'amistoso' | 'projetos'>('suporte');
+  const [supportSubTab, setSupportSubTab] = useState<'suporte' | 'amistoso' | 'projetos' | 'interesse_socio'>('suporte');
   const [historyBlocks, setHistoryBlocks] = useState<any[]>([]);
   const [historyPhotos, setHistoryPhotos] = useState<any[]>([]);
   const [historyTitulo, setHistoryTitulo] = useState('');
@@ -174,6 +170,9 @@ export default function AdminPage() {
   const [matchTipo, setMatchTipo] = useState<'amistoso' | 'campeonato'>('amistoso');
   const [matchModalidade, setMatchModalidade] = useState<'campo' | 'fut7' | 'futsal'>('campo');
   const [editingMatch, setEditingMatch] = useState<string | null>(null);
+  const [matchGolsWestham, setMatchGolsWestham] = useState<number | ''>('');
+  const [matchGolsAdversario, setMatchGolsAdversario] = useState<number | ''>('');
+  const [matchPlayerStats, setMatchPlayerStats] = useState<Record<string, { gols: number; assistencias: number }>>({});
 
   const [modalidadeStatsList, setModalidadeStatsList] = useState<Record<string, { ultimo_resultado: string; gols_total: number; vitorias: number; derrotas: number }>>({});
 
@@ -189,7 +188,7 @@ export default function AdminPage() {
 
         setIsLoadingData(true);
 
-        const [profilesRes, newsRes, playersRes, productsRes, supportRes, formationsRes, projectsRes] = await Promise.all([
+        const [profilesRes, newsRes, playersRes, productsRes, supportRes, projectsRes] = await Promise.all([
           supabase.from('profiles').select('id, email, first_name, last_name, role'),
           supabase
             .from('news')
@@ -199,14 +198,13 @@ export default function AdminPage() {
             .limit(30),
           supabase
             .from('players')
-            .select('id, nome, numero, posicao, idade, gols, nivel, joga_campo, joga_fut7, joga_futsal, cartoes_amarelos, cartoes_vermelhos, faltas, reserva, destaque_campo, destaque_fut7, destaque_futsal, foto_url')
+            .select('id, nome, numero, posicao, idade, gols, nivel, joga_campo, joga_fut7, joga_futsal, cartoes_amarelos, cartoes_vermelhos, faltas, reserva, foto_url, gols_campo, gols_fut7, gols_futsal, assistencias_campo, assistencias_fut7, assistencias_futsal, melhor_goleiro_campo, melhor_goleiro_fut7, melhor_goleiro_futsal')
             .order('numero', { ascending: true }),
           supabase
             .from('store_products')
             .select('*')
             .order('created_at', { ascending: false }),
           supabase.from('support_messages').select('*').order('created_at', { ascending: false }),
-          supabase.from('formation_templates').select('nome, linhas').order('nome'),
           supabase.from('projects').select('*').order('destaque', { ascending: false }).order('created_at', { ascending: false }),
         ]);
 
@@ -277,7 +275,6 @@ export default function AdminPage() {
         }
 
         if (!supportRes.error && supportRes.data) setSupportMessages(supportRes.data);
-        if (!formationsRes.error && formationsRes.data) setFormationTemplates(formationsRes.data);
         if (!projectsRes.error && projectsRes.data) setProjectsList(projectsRes.data);
       } finally {
         setIsLoadingData(false);
@@ -318,7 +315,7 @@ export default function AdminPage() {
   }, [activeTab, user]);
 
   useEffect(() => {
-    if ((activeTab !== 'jogos' && activeTab !== 'lineup') || !user) return;
+    if (activeTab !== 'jogos' || !user) return;
     const load = async () => {
       const [matchesRes, statsRes] = await Promise.all([
         supabase.from('matches').select('*').order('data', { ascending: true }),
@@ -361,54 +358,6 @@ export default function AdminPage() {
       router.replace('/admin');
     }
   }, [isLoadingData, searchParams, newsList, router]);
-
-  useEffect(() => {
-    if (activeTab === 'lineup' && matchesList.length > 0 && !lineupProximaPartida) {
-      const next = matchesList
-        .filter((m: any) => (m.modalidade || 'campo') === lineupModalidade && new Date(m.data) >= new Date())
-        .sort((a: any, b: any) => new Date(a.data).getTime() - new Date(b.data).getTime())[0];
-      if (next?.data) setLineupProximaPartida(new Date(next.data).toISOString().slice(0, 10));
-    }
-  }, [activeTab, matchesList, lineupModalidade, lineupProximaPartida]);
-
-  useEffect(() => {
-    if (activeTab !== 'lineup' || !user) return;
-    const load = async () => {
-      const { data } = await supabase
-        .from('lineups')
-        .select('id, formacao, proxima_partida, lineup_players(posicao, player_id, numero_camisa, posicao_label)')
-        .eq('modalidade', lineupModalidade)
-        .order('proxima_partida', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (data?.lineup_players && Array.isArray(data.lineup_players) && playersList.length > 0) {
-        const lp = data.lineup_players as any[];
-        const map: Record<string, { id: string; nome: string; numero: number }> = {};
-        const labelsMap: Record<string, string> = {};
-        lp.forEach((row: any) => {
-          const pid = row.player_id;
-          const pos = row.posicao;
-          if (pos && pid && /^slot_\d+$/.test(pos)) {
-            const p = playersList.find((x: any) => x.id === pid);
-            map[pos] = {
-              id: pid,
-              nome: p?.nome ?? 'Jogador',
-              numero: row.numero_camisa ?? p?.numero ?? 0,
-            };
-            if (row.posicao_label) labelsMap[pos] = row.posicao_label;
-          }
-        });
-        setLineupSlotPlayers(map);
-        setLineupSlotLabels(labelsMap);
-        if (data.formacao) setLineupFormacao(data.formacao);
-        if (data.proxima_partida) setLineupProximaPartida(new Date(data.proxima_partida).toISOString().slice(0, 10));
-      } else {
-        setLineupSlotPlayers({});
-        setLineupSlotLabels({});
-      }
-    };
-    load();
-  }, [activeTab, user, lineupModalidade, playersList.length]);
 
   useEffect(() => {
     if (activeTab !== 'historia' || !user) return;
@@ -567,17 +516,29 @@ export default function AdminPage() {
 
   // Players handlers
   const handleAddPlayer = async () => {
-    if (!playerName.trim() || !playerNumber || !playerPosition) return;
+    if (!playerName.trim()) {
+      showFeedback('error', 'Preencha o nome do jogador.');
+      return;
+    }
+    const num = parseInt(playerNumber, 10);
+    if (!playerNumber || isNaN(num) || num < 0) {
+      showFeedback('error', 'Preencha o número da camisa (número válido).');
+      return;
+    }
+    if (!playerPosition?.trim()) {
+      showFeedback('error', 'Selecione a posição do jogador.');
+      return;
+    }
     const atLeastOne = playerJogaCampo || playerJogaFut7 || playerJogaFutsal;
     if (!atLeastOne) {
       showFeedback('error', 'Marque pelo menos uma modalidade (Campo, FUT 7 ou Futsal).');
       return;
     }
 
-    const payload = {
-      nome: playerName,
-      numero: parseInt(playerNumber, 10),
-      posicao: playerPosition,
+    const payload: Record<string, unknown> = {
+      nome: playerName.trim(),
+      numero: num,
+      posicao: playerPosition.trim(),
       idade: playerAge ? parseInt(playerAge, 10) : null,
       gols: 0,
       nivel: 5,
@@ -669,10 +630,16 @@ export default function AdminPage() {
       joga_campo: playerJogaCampo,
       joga_fut7: playerJogaFut7,
       joga_futsal: playerJogaFutsal,
-      destaque_campo: editPlayerDestaqueCampo,
-      destaque_fut7: editPlayerDestaqueFut7,
-      destaque_futsal: editPlayerDestaqueFutsal,
       foto_url: editPlayerFotoUrl.trim() || null,
+      gols_campo: editPlayerGolsCampo,
+      gols_fut7: editPlayerGolsFut7,
+      gols_futsal: editPlayerGolsFutsal,
+      assistencias_campo: editPlayerAssistCampo,
+      assistencias_fut7: editPlayerAssistFut7,
+      assistencias_futsal: editPlayerAssistFutsal,
+      melhor_goleiro_campo: editPlayerMelhorGoleiroCampo,
+      melhor_goleiro_fut7: editPlayerMelhorGoleiroFut7,
+      melhor_goleiro_futsal: editPlayerMelhorGoleiroFutsal,
     };
     const { error } = await supabase.from('players').update(payload).eq('id', p.id);
     if (error) {
@@ -691,106 +658,6 @@ export default function AdminPage() {
     else setPlayersList((prev) => prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)));
   };
 
-  const handleSaveLineup = async () => {
-    const nTitulares = lineupModalidade === 'futsal' ? 5 : lineupModalidade === 'fut7' ? 7 : 11;
-    const slots = ['slot_0', 'slot_1', 'slot_2', 'slot_3', 'slot_4', 'slot_5', 'slot_6', 'slot_7', 'slot_8', 'slot_9', 'slot_10'].slice(0, nTitulares);
-    const filled = slots.filter((s) => lineupSlotPlayers[s]?.id);
-    if (filled.length < nTitulares) {
-      showFeedback('error', `Selecione os ${nTitulares} jogadores titulares no desenho do campo.`);
-      return;
-    }
-    const dataPartida = lineupProximaPartida || new Date().toISOString().slice(0, 10);
-    setLineupSaving(true);
-    try {
-      const { data: existing } = await supabase
-        .from('lineups')
-        .select('id')
-        .eq('modalidade', lineupModalidade)
-        .order('proxima_partida', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      let escalacaoId: string;
-      if (existing?.id) {
-        const { error: errUpd } = await supabase
-          .from('lineups')
-          .update({
-            proxima_partida: dataPartida,
-            formacao: lineupFormacao,
-            descricao: `Escalação ${lineupModalidade} - ${lineupFormacao}`,
-          })
-          .eq('id', existing.id);
-        if (errUpd) {
-          showFeedback('error', `Erro ao atualizar escalação: ${errUpd.message}`);
-          return;
-        }
-        escalacaoId = existing.id;
-        await supabase.from('lineup_players').delete().eq('escalacao_id', escalacaoId);
-      } else {
-        const { data: lineupRow, error: errLineup } = await supabase
-          .from('lineups')
-          .insert({
-            proxima_partida: dataPartida,
-            formacao: lineupFormacao,
-            descricao: `Escalação ${lineupModalidade} - ${lineupFormacao}`,
-            modalidade: lineupModalidade,
-          })
-          .select('id')
-          .single();
-        if (errLineup) {
-          showFeedback('error', `Erro ao salvar escalação: ${errLineup.message}`);
-          return;
-        }
-        escalacaoId = lineupRow.id;
-      }
-      const rows = slots.map((posicao) => {
-        const p = lineupSlotPlayers[posicao];
-        const label = lineupSlotLabels[posicao]?.trim();
-        return {
-          escalacao_id: escalacaoId,
-          player_id: p.id,
-          posicao,
-          numero_camisa: p.numero,
-          titular: true,
-          posicao_label: label || null,
-        };
-      });
-      const { error: errLp } = await supabase.from('lineup_players').insert(rows);
-      if (errLp) {
-        showFeedback('error', `Erro ao salvar jogadores: ${errLp.message}`);
-        return;
-      }
-      showFeedback('success', 'Escalação salva! A página de jogos será atualizada.');
-    } finally {
-      setLineupSaving(false);
-    }
-  };
-
-  const handleLineupLabelChange = (slotId: string, label: string) => {
-    setLineupSlotLabels((prev) => ({ ...prev, [slotId]: label }));
-  };
-
-  const handleLineupSlotChange = (slotId: string, playerId: string | null) => {
-    if (!playerId) {
-      setLineupSlotPlayers((prev) => {
-        const next = { ...prev };
-        delete next[slotId];
-        return next;
-      });
-      return;
-    }
-    const p = playersList.find((x: any) => x.id === playerId);
-    if (p) {
-      setLineupSlotPlayers((prev) => ({
-        ...prev,
-        [slotId]: {
-          id: p.id,
-          nome: p.nome || 'Jogador',
-          numero: p.numero ?? p.numero_camisa ?? 0,
-        },
-      }));
-    }
-  };
-
   const clearPlayerForm = () => {
     setPlayerName('');
     setPlayerNumber('');
@@ -804,10 +671,16 @@ export default function AdminPage() {
     setEditPlayerCartoesV(0);
     setEditPlayerFaltas(0);
     setEditPlayerReserva(false);
-    setEditPlayerDestaqueCampo(false);
-    setEditPlayerDestaqueFut7(false);
-    setEditPlayerDestaqueFutsal(false);
     setEditPlayerFotoUrl('');
+    setEditPlayerGolsCampo(0);
+    setEditPlayerGolsFut7(0);
+    setEditPlayerGolsFutsal(0);
+    setEditPlayerAssistCampo(0);
+    setEditPlayerAssistFut7(0);
+    setEditPlayerAssistFutsal(0);
+    setEditPlayerMelhorGoleiroCampo(false);
+    setEditPlayerMelhorGoleiroFut7(false);
+    setEditPlayerMelhorGoleiroFutsal(false);
   };
 
   const openEditPlayer = (player: any) => {
@@ -824,10 +697,16 @@ export default function AdminPage() {
     setEditPlayerCartoesV(player.cartoes_vermelhos ?? 0);
     setEditPlayerFaltas(player.faltas ?? 0);
     setEditPlayerReserva(!!player.reserva);
-    setEditPlayerDestaqueCampo(!!player.destaque_campo);
-    setEditPlayerDestaqueFut7(!!player.destaque_fut7);
-    setEditPlayerDestaqueFutsal(!!player.destaque_futsal);
     setEditPlayerFotoUrl(player.foto_url || '');
+    setEditPlayerGolsCampo(player.gols_campo ?? 0);
+    setEditPlayerGolsFut7(player.gols_fut7 ?? 0);
+    setEditPlayerGolsFutsal(player.gols_futsal ?? 0);
+    setEditPlayerAssistCampo(player.assistencias_campo ?? 0);
+    setEditPlayerAssistFut7(player.assistencias_fut7 ?? 0);
+    setEditPlayerAssistFutsal(player.assistencias_futsal ?? 0);
+    setEditPlayerMelhorGoleiroCampo(!!player.melhor_goleiro_campo);
+    setEditPlayerMelhorGoleiroFut7(!!player.melhor_goleiro_fut7);
+    setEditPlayerMelhorGoleiroFutsal(!!player.melhor_goleiro_futsal);
   };
 
   // Ranks handlers
@@ -1064,7 +943,11 @@ export default function AdminPage() {
       return;
     }
     const dataISO = new Date(matchData).toISOString();
-    const payload = { data: dataISO, adversario: matchAdversario.trim(), local: matchLocal.trim(), tipo: matchTipo, modalidade: matchModalidade };
+    const payload: any = { data: dataISO, adversario: matchAdversario.trim(), local: matchLocal.trim(), tipo: matchTipo, modalidade: matchModalidade };
+    if (matchGolsWestham !== '' && matchGolsAdversario !== '') {
+      payload.gols_westham = Number(matchGolsWestham);
+      payload.gols_adversario = Number(matchGolsAdversario);
+    }
     if (editingMatch) {
       const { error } = await supabase.from('matches').update(payload).eq('id', editingMatch);
       if (error) { showFeedback('error', error.message); return; }
@@ -1082,15 +965,65 @@ export default function AdminPage() {
     setMatchLocal('');
     setMatchTipo('amistoso');
     setMatchModalidade('campo');
+    setMatchGolsWestham('');
+    setMatchGolsAdversario('');
+    setMatchPlayerStats({});
   };
 
-  const handleEditMatch = (m: any) => {
+  const handleEditMatch = async (m: any) => {
     setEditingMatch(m.id);
     setMatchData(m.data ? new Date(m.data).toISOString().slice(0, 16) : '');
     setMatchAdversario(m.adversario || '');
     setMatchLocal(m.local || '');
     setMatchTipo(m.tipo === 'campeonato' ? 'campeonato' : 'amistoso');
     setMatchModalidade(m.modalidade === 'fut7' ? 'fut7' : m.modalidade === 'futsal' ? 'futsal' : 'campo');
+    setMatchGolsWestham(m.gols_westham ?? '');
+    setMatchGolsAdversario(m.gols_adversario ?? '');
+    const { data: stats } = await supabase.from('match_player_stats').select('player_id, gols, assistencias').eq('match_id', m.id);
+    const map: Record<string, { gols: number; assistencias: number }> = {};
+    (stats || []).forEach((r: any) => { map[r.player_id] = { gols: r.gols ?? 0, assistencias: r.assistencias ?? 0 }; });
+    setMatchPlayerStats(map);
+  };
+
+  const handleSaveMatchPlayerStats = async () => {
+    if (!editingMatch) return;
+    const mod = matchModalidade;
+    const jogam = playersList.filter((p: any) => mod === 'campo' ? p.joga_campo !== false : mod === 'fut7' ? !!p.joga_fut7 : !!p.joga_futsal);
+    await supabase.from('match_player_stats').delete().eq('match_id', editingMatch);
+    const rows = jogam
+      .filter((p: any) => (matchPlayerStats[p.id]?.gols ?? 0) > 0 || (matchPlayerStats[p.id]?.assistencias ?? 0) > 0)
+      .map((p: any) => ({
+        match_id: editingMatch,
+        player_id: p.id,
+        gols: matchPlayerStats[p.id]?.gols ?? 0,
+        assistencias: matchPlayerStats[p.id]?.assistencias ?? 0,
+      }));
+    if (rows.length > 0) {
+      const { error } = await supabase.from('match_player_stats').insert(rows);
+      if (error) showFeedback('error', error.message);
+      else showFeedback('success', 'Estatísticas da partida salvas!');
+    } else {
+      showFeedback('success', 'Nenhum gol/assistência para salvar.');
+    }
+  };
+
+  const setMatchPlayerStat = (playerId: string, field: 'gols' | 'assistencias', value: number) => {
+    setMatchPlayerStats((prev) => ({
+      ...prev,
+      [playerId]: { ...(prev[playerId] || { gols: 0, assistencias: 0 }), [field]: value },
+    }));
+  };
+
+  const handleEditMatchCancel = () => {
+    setEditingMatch(null);
+    setMatchData('');
+    setMatchAdversario('');
+    setMatchLocal('');
+    setMatchTipo('amistoso');
+    setMatchModalidade('campo');
+    setMatchGolsWestham('');
+    setMatchGolsAdversario('');
+    setMatchPlayerStats({});
   };
 
   const handleDeleteMatch = (id: string) => {
@@ -1143,7 +1076,6 @@ export default function AdminPage() {
               { id: 'suporte', label: 'Mensagens', icon: '📩' },
               { id: 'news', label: 'Notícias', icon: '📰' },
               { id: 'players', label: 'Jogadores', icon: '⚽' },
-              { id: 'lineup', label: 'Escalação', icon: '🏆' },
               { id: 'shop', label: 'Loja', icon: '🛍️' },
               { id: 'projects', label: 'Projetos', icon: '📁' },
               { id: 'jogos', label: 'Próximos Jogos', icon: '📅' },
@@ -1308,9 +1240,9 @@ export default function AdminPage() {
           {/* Mensagens */}
           {activeTab === 'suporte' && (
             <Card className="shadow-2xl">
-              <h2 className="text-2xl font-bold mb-2 text-gray-800">Mensagens: Suporte / Amistoso / Projetos</h2>
+              <h2 className="text-2xl font-bold mb-2 text-gray-800">Mensagens: Suporte / Amistoso / Projetos / Interesse em ser sócio</h2>
               <p className="text-gray-600 mb-6">
-                Separadas por categoria: defeitos/suporte, solicitações de amistoso e inscrições em projetos.
+                Separadas por categoria: defeitos/suporte, solicitações de amistoso, inscrições em projetos e interesse em ser sócio.
               </p>
               <div className="flex gap-4 mb-6 flex-wrap">
                 <button
@@ -1334,20 +1266,30 @@ export default function AdminPage() {
                 >
                   📁 Projetos
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setSupportSubTab('interesse_socio')}
+                  className={`px-4 py-2 rounded-lg font-semibold ${supportSubTab === 'interesse_socio' ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                >
+                  ⭐ Interesse em ser sócio
+                </button>
               </div>
               {(() => {
                 const isAmistoso = (m: any) => m.tipo === 'amistoso' || (m.mensagem || '').includes('FORMULÁRIO: Marcar amistoso');
                 const isProjetos = (m: any) => m.tipo === 'projetos' || (m.mensagem || '').includes('FORMULÁRIO: Inscrição em projeto');
+                const isInteresseSocio = (m: any) => m.tipo === 'interesse_socio' || (m.mensagem || '').includes('FORMULÁRIO: Interesse em ser sócio');
                 const msgs = supportSubTab === 'amistoso'
                   ? supportMessages.filter((m: any) => isAmistoso(m))
                   : supportSubTab === 'projetos'
                     ? supportMessages.filter((m: any) => isProjetos(m))
-                    : supportMessages.filter((m: any) => !isAmistoso(m) && !isProjetos(m));
+                    : supportSubTab === 'interesse_socio'
+                      ? supportMessages.filter((m: any) => isInteresseSocio(m))
+                      : supportMessages.filter((m: any) => !isAmistoso(m) && !isProjetos(m) && !isInteresseSocio(m));
                 return (
                   <div className="overflow-x-auto">
                     {msgs.length === 0 ? (
                       <p className="text-gray-500 py-6">
-                        {supportSubTab === 'amistoso' ? 'Nenhuma solicitação de amistoso ainda.' : supportSubTab === 'projetos' ? 'Nenhuma inscrição em projeto ainda.' : 'Nenhuma mensagem de suporte ainda.'}
+                        {supportSubTab === 'amistoso' ? 'Nenhuma solicitação de amistoso ainda.' : supportSubTab === 'projetos' ? 'Nenhuma inscrição em projeto ainda.' : supportSubTab === 'interesse_socio' ? 'Nenhum interesse em ser sócio ainda.' : 'Nenhuma mensagem de suporte ainda.'}
                       </p>
                     ) : (
                       <div className="space-y-4">
@@ -1554,13 +1496,48 @@ export default function AdminPage() {
                       <option value="campeonato">Campeonato</option>
                     </select>
                   </div>
+                  <Input label="Placar Westham" type="number" min={0} value={matchGolsWestham === '' ? '' : String(matchGolsWestham)} onChange={(e) => setMatchGolsWestham(e.target.value === '' ? '' : parseInt(e.target.value) || 0)} placeholder="—" />
+                  <Input label="Placar adversário" type="number" min={0} value={matchGolsAdversario === '' ? '' : String(matchGolsAdversario)} onChange={(e) => setMatchGolsAdversario(e.target.value === '' ? '' : parseInt(e.target.value) || 0)} placeholder="—" />
                 </div>
                 <div className="flex gap-3 mt-4">
                   <Button size="lg" onClick={handleAddMatch}>{editingMatch ? '💾 Salvar' : '➕ Adicionar partida'}</Button>
                   {editingMatch && (
-                    <Button size="lg" variant="secondary" onClick={() => { setEditingMatch(null); setMatchData(''); setMatchAdversario(''); setMatchLocal(''); setMatchTipo('amistoso'); setMatchModalidade('campo'); }}>Cancelar</Button>
+                    <Button size="lg" variant="secondary" onClick={handleEditMatchCancel}>Cancelar</Button>
                   )}
                 </div>
+                {editingMatch && (
+                  <div className="mt-6 pt-6 border-t border-gray-200">
+                    <h3 className="font-bold text-gray-800 mb-3">Gols e assistências na partida</h3>
+                    <p className="text-sm text-gray-600 mb-3">Preencha para aparecer no detalhe do jogo anterior (página Jogos por modalidade).</p>
+                    <div className="overflow-x-auto max-h-64 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-300">
+                            <th className="text-left py-2 px-2 font-semibold text-gray-800">Jogador</th>
+                            <th className="text-left py-2 px-2 font-semibold text-gray-800 w-20">Gols</th>
+                            <th className="text-left py-2 px-2 font-semibold text-gray-800 w-24">Assist.</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {playersList
+                            .filter((p: any) => matchModalidade === 'campo' ? p.joga_campo !== false : matchModalidade === 'fut7' ? !!p.joga_fut7 : !!p.joga_futsal)
+                            .map((p: any) => (
+                              <tr key={p.id} className="border-b border-gray-100">
+                                <td className="py-2 px-2">{p.nome} #{p.numero}</td>
+                                <td className="py-2 px-2">
+                                  <input type="number" min={0} className="w-16 px-2 py-1 border rounded" value={matchPlayerStats[p.id]?.gols ?? 0} onChange={(e) => setMatchPlayerStat(p.id, 'gols', parseInt(e.target.value) || 0)} />
+                                </td>
+                                <td className="py-2 px-2">
+                                  <input type="number" min={0} className="w-16 px-2 py-1 border rounded" value={matchPlayerStats[p.id]?.assistencias ?? 0} onChange={(e) => setMatchPlayerStat(p.id, 'assistencias', parseInt(e.target.value) || 0)} />
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <Button size="sm" className="mt-3" onClick={handleSaveMatchPlayerStats}>Salvar estatísticas da partida</Button>
+                  </div>
+                )}
               </Card>
               <Card className="shadow-2xl">
                 <h2 className="text-2xl font-bold mb-4 text-gray-800">Partidas cadastradas ({matchesList.length})</h2>
@@ -1573,6 +1550,7 @@ export default function AdminPage() {
                         <tr className="border-b-2 border-gray-300">
                           <th className="text-left py-2 px-3 font-semibold text-gray-800">Data</th>
                           <th className="text-left py-2 px-3 font-semibold text-gray-800">Adversário</th>
+                          <th className="text-left py-2 px-3 font-semibold text-gray-800">Placar</th>
                           <th className="text-left py-2 px-3 font-semibold text-gray-800">Local</th>
                           <th className="text-left py-2 px-3 font-semibold text-gray-800">Modalidade</th>
                           <th className="text-left py-2 px-3 font-semibold text-gray-800">Tipo</th>
@@ -1584,6 +1562,7 @@ export default function AdminPage() {
                           <tr key={m.id} className="border-b border-gray-200">
                             <td className="py-2 px-3">{m.data ? new Date(m.data).toLocaleString('pt-BR') : ''}</td>
                             <td className="py-2 px-3 font-medium">{m.adversario}</td>
+                            <td className="py-2 px-3">{m.gols_westham != null && m.gols_adversario != null ? `${m.gols_westham} x ${m.gols_adversario}` : '—'}</td>
                             <td className="py-2 px-3">{m.local}</td>
                             <td className="py-2 px-3"><span className="px-2 py-0.5 rounded text-xs bg-orange-100 text-orange-700">{m.modalidade === 'fut7' ? 'FUT 7' : m.modalidade === 'futsal' ? 'Futsal' : 'Campo'}</span></td>
                             <td className="py-2 px-3">{m.tipo === 'campeonato' ? 'Campeonato' : 'Amistoso'}</td>
@@ -1976,25 +1955,47 @@ export default function AdminPage() {
                           return url;
                         }}
                       />
-                      <div className="flex flex-col gap-3">
-                        <div className="flex items-center gap-2">
-                          <input type="checkbox" id="editReserva" checked={editPlayerReserva} onChange={(e) => setEditPlayerReserva(e.target.checked)} className="w-5 h-5 rounded" />
-                          <label htmlFor="editReserva" className="font-semibold text-gray-700">Reserva</label>
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <span className="font-semibold text-gray-700">Destaque por categoria (máx. 3 por modalidade):</span>
-                          <label className="flex items-center gap-2">
-                            <input type="checkbox" id="editDestaqueCampo" checked={editPlayerDestaqueCampo} onChange={(e) => setEditPlayerDestaqueCampo(e.target.checked)} className="w-5 h-5 rounded" />
-                            <span>Campo</span>
-                          </label>
-                          <label className="flex items-center gap-2">
-                            <input type="checkbox" id="editDestaqueFut7" checked={editPlayerDestaqueFut7} onChange={(e) => setEditPlayerDestaqueFut7(e.target.checked)} className="w-5 h-5 rounded" />
-                            <span>FUT 7</span>
-                          </label>
-                          <label className="flex items-center gap-2">
-                            <input type="checkbox" id="editDestaqueFutsal" checked={editPlayerDestaqueFutsal} onChange={(e) => setEditPlayerDestaqueFutsal(e.target.checked)} className="w-5 h-5 rounded" />
-                            <span>Futsal</span>
-                          </label>
+                      <div className="mt-4 p-5 bg-orange-50/80 border-2 border-orange-200 rounded-xl">
+                        <h3 className="text-base font-bold text-gray-900 mb-4 border-b border-orange-200 pb-2">⭐ Jogadores Destaque</h3>
+                        <p className="text-sm text-gray-700 mb-4">O <strong>artilheiro</strong> (mais gols) e o <strong>melhor em assistências</strong> aparecem automaticamente. O admin marca o <strong>melhor artilheiro</strong> e o <strong>melhor goleiro</strong> por modalidade.</p>
+                        <div className="flex flex-col gap-4">
+                          <div className="flex items-center gap-2">
+                            <input type="checkbox" id="editReserva" checked={editPlayerReserva} onChange={(e) => setEditPlayerReserva(e.target.checked)} className="w-5 h-5 rounded border-gray-400" />
+                            <label htmlFor="editReserva" className="font-semibold text-gray-900">Reserva</label>
+                          </div>
+                          <div>
+                            <span className="font-bold text-gray-900 block mb-2">Gols por modalidade</span>
+                            <div className="grid grid-cols-3 gap-3">
+                              <Input label="Campo" type="number" min={0} value={String(editPlayerGolsCampo)} onChange={(e) => setEditPlayerGolsCampo(parseInt(e.target.value) || 0)} className="bg-white" />
+                              <Input label="FUT 7" type="number" min={0} value={String(editPlayerGolsFut7)} onChange={(e) => setEditPlayerGolsFut7(parseInt(e.target.value) || 0)} className="bg-white" />
+                              <Input label="Futsal" type="number" min={0} value={String(editPlayerGolsFutsal)} onChange={(e) => setEditPlayerGolsFutsal(parseInt(e.target.value) || 0)} className="bg-white" />
+                            </div>
+                          </div>
+                          <div>
+                            <span className="font-bold text-gray-900 block mb-2">Assistências por modalidade</span>
+                            <div className="grid grid-cols-3 gap-3">
+                              <Input label="Campo" type="number" min={0} value={String(editPlayerAssistCampo)} onChange={(e) => setEditPlayerAssistCampo(parseInt(e.target.value) || 0)} className="bg-white" />
+                              <Input label="FUT 7" type="number" min={0} value={String(editPlayerAssistFut7)} onChange={(e) => setEditPlayerAssistFut7(parseInt(e.target.value) || 0)} className="bg-white" />
+                              <Input label="Futsal" type="number" min={0} value={String(editPlayerAssistFutsal)} onChange={(e) => setEditPlayerAssistFutsal(parseInt(e.target.value) || 0)} className="bg-white" />
+                            </div>
+                          </div>
+                          <div>
+                            <span className="font-bold text-gray-900 block mb-2">Melhor goleiro (admin marca por modalidade)</span>
+                            <div className="flex flex-wrap gap-4">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" checked={editPlayerMelhorGoleiroCampo} onChange={(e) => setEditPlayerMelhorGoleiroCampo(e.target.checked)} className="w-5 h-5 rounded border-gray-400" />
+                                <span className="font-medium text-gray-900">Campo</span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" checked={editPlayerMelhorGoleiroFut7} onChange={(e) => setEditPlayerMelhorGoleiroFut7(e.target.checked)} className="w-5 h-5 rounded border-gray-400" />
+                                <span className="font-medium text-gray-900">FUT 7</span>
+                              </label>
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" checked={editPlayerMelhorGoleiroFutsal} onChange={(e) => setEditPlayerMelhorGoleiroFutsal(e.target.checked)} className="w-5 h-5 rounded border-gray-400" />
+                                <span className="font-medium text-gray-900">Futsal</span>
+                              </label>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </>
@@ -2109,91 +2110,6 @@ export default function AdminPage() {
           )}
 
           {/* Lineup Tab */}
-          {activeTab === 'lineup' && (
-            <div className="space-y-6">
-              <Card className="shadow-2xl">
-                <h2 className="text-2xl font-bold mb-6 text-gray-800">🏆 Gerenciar Escalação</h2>
-
-                <div className="grid md:grid-cols-4 gap-6 mb-6">
-                  <div>
-                    <label className="text-sm font-semibold text-gray-700 block mb-2">Modalidade</label>
-                    <select
-                      value={lineupModalidade}
-                      onChange={(e) => {
-                        const v = e.target.value as 'campo' | 'fut7' | 'futsal';
-                        setLineupModalidade(v);
-                        const forms = getFormationsForModalidade(v);
-                        setLineupFormacao(forms.includes(lineupFormacao) ? lineupFormacao : forms[0]);
-                        setLineupSlotPlayers({});
-                        setLineupSlotLabels({});
-                      }}
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-600 bg-white text-gray-900"
-                    >
-                      <option value="campo">Campo (11)</option>
-                      <option value="fut7">FUT 7 (7)</option>
-                      <option value="futsal">Futsal (5)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-gray-700 block mb-2">Formação</label>
-                    <select
-                      value={lineupFormacao}
-                      onChange={(e) => setLineupFormacao(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-600 bg-white text-gray-900"
-                    >
-                      {getFormationsForModalidade(lineupModalidade).map((f) => (
-                        <option key={f} value={f}>{f}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-gray-700 block mb-2">Próxima partida</label>
-                    <input
-                      type="date"
-                      value={lineupProximaPartida}
-                      onChange={(e) => setLineupProximaPartida(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-600 bg-white text-gray-900"
-                    />
-                  </div>
-                  <div className="flex items-end gap-2">
-                    <Button size="lg" onClick={handleSaveLineup} disabled={lineupSaving}>
-                      {lineupSaving ? 'Salvando...' : '💾 Salvar Escalação'}
-                    </Button>
-                    <Button size="lg" variant="secondary" onClick={() => { setLineupSlotPlayers({}); setLineupSlotLabels({}); }}>
-                      Limpar
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-sm text-gray-600 mb-4">
-                  Selecione o jogador em cada posição do campo. Cadastre os jogadores na aba Jogadores e marque em qual modalidade cada um joga.
-                </p>
-
-                {(() => {
-                  const jogamModalidade = playersList
-                    .filter((p) =>
-                      lineupModalidade === 'campo' ? p.joga_campo !== false : lineupModalidade === 'fut7' ? !!p.joga_fut7 : !!p.joga_futsal
-                    )
-                    .sort((a, b) => (a.numero ?? 0) - (b.numero ?? 0))
-                    .map((p) => ({ id: p.id, nome: p.nome, numero: p.numero ?? p.numero_camisa ?? 0 }));
-                  return (
-                    <div className="flex justify-center">
-                      <LineupField
-                        formacao={lineupFormacao}
-                        modalidade={lineupModalidade}
-                        mode="admin"
-                        players={jogamModalidade}
-                        slotPlayers={lineupSlotPlayers}
-                        slotLabels={lineupSlotLabels}
-                        onSlotChange={handleLineupSlotChange}
-                        onLabelChange={handleLineupLabelChange}
-                      />
-                    </div>
-                  );
-                })()}
-              </Card>
-            </div>
-          )}
-
           {/* Shop Tab */}
           {activeTab === 'shop' && (
             <div className="space-y-6">

@@ -1,23 +1,31 @@
- 'use client';
- 
- import { useState } from 'react';
- import Link from 'next/link';
- import Image from 'next/image';
- import { useRouter } from 'next/navigation';
- import { useAuth } from '@/context/AuthContext';
- import { Button } from '@/components/Button';
- import { Input } from '@/components/Input';
- import { Header } from '@/components/Header';
- 
- export default function SignupPage() {
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/Button';
+import { Input } from '@/components/Input';
+import { Header } from '@/components/Header';
+import { supabase } from '@/lib/supabase';
+import { whatsAppOrderUrl, buildInteresseSocioMessage } from '@/lib/site-config';
+
+export default function SignupPage() {
   const [formData, setFormData] = useState({
     nome: '',
     sobrenome: '',
     email: '',
     cpf: '',
     telefone: '',
+    cep: '',
+    logradouro: '',
+    numero: '',
+    bairro: '',
+    data_nascimento: '',
     password: '',
     passwordConfirm: '',
+    interesse_socio: false,
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -26,7 +34,11 @@
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const checked = (e.target as HTMLInputElement).type === 'checkbox' ? (e.target as HTMLInputElement).checked : undefined;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: checked !== undefined ? checked : value,
+    }));
   };
 
   const validateForm = () => {
@@ -60,8 +72,43 @@
         email: formData.email,
         cpf: formData.cpf,
         telefone: formData.telefone,
+        cep: formData.cep || undefined,
+        logradouro: formData.logradouro || undefined,
+        numero: formData.numero || undefined,
+        bairro: formData.bairro || undefined,
+        data_nascimento: formData.data_nascimento || undefined,
+        interesse_socio: formData.interesse_socio,
         password: formData.password,
       });
+
+      if (formData.interesse_socio) {
+        const mensagem = `FORMULÁRIO: Interesse em ser sócio
+
+Nome: ${formData.nome} ${formData.sobrenome}
+E-mail: ${formData.email}
+Telefone: ${formData.telefone}
+CPF: ${formData.cpf}
+Data de nascimento: ${formData.data_nascimento || '—'}
+CEP: ${formData.cep || '—'}
+Endereço: ${[formData.logradouro, formData.numero, formData.bairro].filter(Boolean).join(', ') || '—'}`;
+
+        const { data: { session } } = await supabase.auth.getSession();
+        await supabase.from('support_messages').insert({
+          nome: `${formData.nome} ${formData.sobrenome}`,
+          email: formData.email,
+          telefone: formData.telefone,
+          mensagem,
+          tipo: 'interesse_socio',
+          user_id: session?.user?.id || null,
+        });
+        const url = whatsAppOrderUrl(buildInteresseSocioMessage(
+          `${formData.nome} ${formData.sobrenome}`,
+          formData.email,
+          formData.telefone,
+        ));
+        window.open(url, '_blank');
+      }
+
       router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Erro ao cadastrar');
@@ -158,13 +205,71 @@
                 required
               />
               <Input
-                name="telefone"
-                label="Telefone"
-                placeholder="(11) 99999-9999"
-                value={formData.telefone}
+                name="data_nascimento"
+                label="Data de nascimento"
+                type="date"
+                value={formData.data_nascimento}
                 onChange={handleChange}
                 required
               />
+            </div>
+
+            <Input
+              name="telefone"
+              label="Telefone"
+              placeholder="(11) 99999-9999"
+              value={formData.telefone}
+              onChange={handleChange}
+              required
+            />
+
+            <Input
+              name="cep"
+              label="CEP"
+              placeholder="00000-000"
+              value={formData.cep}
+              onChange={handleChange}
+              required
+            />
+            <Input
+              name="logradouro"
+              label="Logradouro"
+              placeholder="Rua, avenida..."
+              value={formData.logradouro}
+              onChange={handleChange}
+              required
+            />
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                name="numero"
+                label="Número"
+                placeholder="Nº"
+                value={formData.numero}
+                onChange={handleChange}
+                required
+              />
+              <Input
+                name="bairro"
+                label="Bairro"
+                placeholder="Bairro"
+                value={formData.bairro}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <input
+                type="checkbox"
+                id="interesse_socio"
+                name="interesse_socio"
+                checked={formData.interesse_socio}
+                onChange={handleChange}
+                className="w-5 h-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+              />
+              <label htmlFor="interesse_socio" className="text-sm font-semibold text-gray-800">
+                TENHO INTERESSE EM SER SÓCIO
+              </label>
             </div>
 
             <Input

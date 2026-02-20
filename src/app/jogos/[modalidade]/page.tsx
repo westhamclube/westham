@@ -2,10 +2,8 @@
 
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Header } from '@/components/Header';
 import Link from 'next/link';
 import { Card } from '@/components/Card';
-import { LineupField } from '@/components/LineupField';
 import type { Match, NewsModalidade } from '@/types';
 import { supabase } from '@/lib/supabase';
 
@@ -27,22 +25,12 @@ export default function JogosModalidadePage() {
   const modalidade = MODALIDADES[slug] || 'campo';
 
   const [matches, setMatches] = useState<Match[]>([]);
+  const [pastMatches, setPastMatches] = useState<Match[]>([]);
+  const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
+  const [matchStats, setMatchStats] = useState<Record<string, { player_id: string; nome: string; numero: number; gols: number; assistencias: number }[]>>({});
   const [news, setNews] = useState<any[]>([]);
   const [players, setPlayers] = useState<any[]>([]);
   const [modalidadeStats, setModalidadeStats] = useState<{ ultimo_resultado: string | null; gols_total: number; vitorias: number; derrotas: number } | null>(null);
-  const [lineup, setLineup] = useState<{
-    id: string;
-    formacao: string;
-    proxima_partida: string;
-    descricao?: string;
-    lineup_players?: Array<{
-      posicao: string;
-      numero_camisa: number;
-      posicao_label?: string;
-      titular: boolean;
-      player_id: string;
-    }>;
-  } | null>(null);
   const [allPlayersMap, setAllPlayersMap] = useState<Record<string, { nome: string; numero: number }>>({});
   const [loading, setLoading] = useState(true);
 
@@ -50,9 +38,9 @@ export default function JogosModalidadePage() {
     const load = async () => {
       const [
         { data: matchesData },
+        { data: pastMatchesData },
         { data: newsData },
         { data: allPlayersData },
-        { data: lineupData },
         { data: statsData },
       ] = await Promise.all([
         supabase
@@ -62,15 +50,23 @@ export default function JogosModalidadePage() {
           .or(`modalidade.eq.${modalidade},modalidade.is.null`)
           .order('data', { ascending: true })
           .limit(10),
+        supabase
+          .from('matches')
+          .select('*')
+          .lt('data', new Date().toISOString())
+          .or(`modalidade.eq.${modalidade},modalidade.is.null`)
+          .order('data', { ascending: false })
+          .limit(15),
         (async () => {
           const { data, error } = await supabase
             .from('news')
             .select('id, titulo, conteudo, imagem_url, created_at')
+            .eq('modalidade', modalidade)
             .order('destaque', { ascending: false })
             .order('created_at', { ascending: false })
-            .limit(8);
+            .limit(4);
           if (error) return { data: [] };
-          return { data: (data || []).slice(0, 4) };
+          return { data: data || [] };
         })(),
         (async () => {
           const { data, error } = await supabase.from('players').select('*');
@@ -79,17 +75,6 @@ export default function JogosModalidadePage() {
             return { data: [] };
           }
           return { data: data || [] };
-        })(),
-        (async () => {
-          const { data, error } = await supabase
-            .from('lineups')
-            .select('id, formacao, proxima_partida, descricao, modalidade, lineup_players(posicao, numero_camisa, posicao_label, titular, player_id)')
-            .eq('modalidade', modalidade)
-            .order('proxima_partida', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          if (error) return { data: null };
-          return { data };
         })(),
         supabase.from('modalidade_stats').select('ultimo_resultado, gols_total, vitorias, derrotas').eq('modalidade', modalidade).maybeSingle(),
       ]);
@@ -110,11 +95,26 @@ export default function JogosModalidadePage() {
           }))
         );
       }
+      if (pastMatchesData) {
+        setPastMatches(
+          pastMatchesData.map((m: any) => ({
+            id: m.id,
+            data: m.data,
+            adversario: m.adversario,
+            local: m.local,
+            resultado: m.resultado,
+            gols_westham: m.gols_westham,
+            gols_adversario: m.gols_adversario,
+            tipo: m.tipo,
+            descricao: m.descricao,
+            modalidade: (m.modalidade || modalidade) as NewsModalidade,
+          }))
+        );
+      }
       if (newsData) setNews(newsData);
       const jogaKey = modalidade === 'campo' ? 'joga_campo' : modalidade === 'fut7' ? 'joga_fut7' : 'joga_futsal';
-      const filteredPlayers = (allPlayersData || []).filter((p: any) => p[jogaKey] !== false).sort((a: any, b: any) => (Number(b?.gols) || 0) - (Number(a?.gols) || 0));
+      const filteredPlayers = (allPlayersData || []).filter((p: any) => p[jogaKey] !== false);
       setPlayers(filteredPlayers);
-      if (lineupData) setLineup(lineupData as any);
       if (statsData) {
         setModalidadeStats({
           ultimo_resultado: statsData.ultimo_resultado ?? null,
@@ -136,10 +136,28 @@ export default function JogosModalidadePage() {
     load();
   }, [modalidade]);
 
-  const destaqueKey = modalidade === 'campo' ? 'destaque_campo' : modalidade === 'fut7' ? 'destaque_fut7' : 'destaque_futsal';
-  const destaquesPlayers = players.filter((p: any) =>
-    !!p[destaqueKey] || (!!p.destaque && (p[destaqueKey] === undefined || p[destaqueKey] === null))
-  ).slice(0, 3);
+  const loadMatchStats = async (matchId: string) => {
+    if (matchStats[matchId]) return;
+    const { data } = await supabase
+      .from('match_player_stats')
+      .select('player_id, gols, assistencias')
+      .eq('match_id', matchId);
+    const list = (data || []).map((r: any) => ({
+      player_id: r.player_id,
+      nome: allPlayersMap[r.player_id]?.nome ?? 'Jogador',
+      numero: allPlayersMap[r.player_id]?.numero ?? 0,
+      gols: r.gols ?? 0,
+      assistencias: r.assistencias ?? 0,
+    })).filter((x) => x.gols > 0 || x.assistencias > 0);
+    setMatchStats((prev) => ({ ...prev, [matchId]: list }));
+  };
+
+  const golsKey = modalidade === 'campo' ? 'gols_campo' : modalidade === 'fut7' ? 'gols_fut7' : 'gols_futsal';
+  const assistsKey = modalidade === 'campo' ? 'assistencias_campo' : modalidade === 'fut7' ? 'assistencias_fut7' : 'assistencias_futsal';
+  const melhorGoleiroKey = modalidade === 'campo' ? 'melhor_goleiro_campo' : modalidade === 'fut7' ? 'melhor_goleiro_fut7' : 'melhor_goleiro_futsal';
+  const melhorGoleiro = players.find((p: any) => !!p[melhorGoleiroKey]);
+  const artilheiro = [...players].filter((p: any) => (p[golsKey] ?? 0) > 0).sort((a: any, b: any) => (b[golsKey] ?? 0) - (a[golsKey] ?? 0))[0];
+  const melhorAssistente = [...players].filter((p: any) => (p[assistsKey] ?? 0) > 0).sort((a: any, b: any) => (b[assistsKey] ?? 0) - (a[assistsKey] ?? 0))[0];
 
   return (
     <main className="bg-neutral-950 min-h-screen py-8 sm:py-10">
@@ -178,59 +196,6 @@ export default function JogosModalidadePage() {
             )}
           </section>
 
-          {/* Escalação */}
-          <section>
-            <h2 className="text-xl font-bold text-neutral-200 mb-4">Escalação</h2>
-            {!loading && !lineup && (
-              <Card className="bg-neutral-900 border border-neutral-800 text-neutral-400 p-4">
-                Nenhuma escalação cadastrada para esta modalidade. O admin pode cadastrar no painel (Escalações).
-              </Card>
-            )}
-            {lineup && (
-              <Card className="bg-neutral-900 border border-neutral-800 overflow-hidden p-4">
-                <div className="mb-4">
-                  <p className="font-semibold text-orange-400">Formação {lineup.formacao || '—'}</p>
-                  {lineup.proxima_partida && (
-                    <p className="text-sm text-neutral-400">
-                      Próxima partida: {new Date(lineup.proxima_partida).toLocaleDateString('pt-BR')}
-                    </p>
-                  )}
-                </div>
-                <LineupField
-                  formacao={lineup.formacao || '4-3-3'}
-                  modalidade={modalidade}
-                  mode="display"
-                  players={[]}
-                  slotPlayers={(() => {
-                    const lp = (lineup.lineup_players || []) as any[];
-                    const map: Record<string, { id: string; nome: string; numero: number }> = {};
-                    lp.forEach((row: any) => {
-                      const p = allPlayersMap[row.player_id];
-                      if (row.posicao && /^slot_\d+$/.test(row.posicao) && row.player_id) {
-                        map[row.posicao] = {
-                          id: row.player_id,
-                          nome: p?.nome ?? 'Jogador',
-                          numero: row.numero_camisa ?? p?.numero ?? 0,
-                        };
-                      }
-                    });
-                    return map;
-                  })()}
-                  slotLabels={(() => {
-                    const lp = (lineup.lineup_players || []) as any[];
-                    const labels: Record<string, string> = {};
-                    lp.forEach((row: any) => {
-                      if (row.posicao && row.posicao_label) {
-                        labels[row.posicao] = row.posicao_label;
-                      }
-                    });
-                    return labels;
-                  })()}
-                />
-              </Card>
-            )}
-          </section>
-
           {/* Próximos jogos */}
           <section>
             <h2 className="text-xl font-bold text-neutral-200 mb-4">Próximos jogos</h2>
@@ -254,6 +219,95 @@ export default function JogosModalidadePage() {
                       })}{' '}
                       · {m.local}
                     </p>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Jogos anteriores */}
+          <section>
+            <h2 className="text-xl font-bold text-neutral-200 mb-4">Jogos anteriores</h2>
+            {loading && <p className="text-neutral-400 text-sm">Carregando...</p>}
+            {!loading && pastMatches.length === 0 && (
+              <p className="text-neutral-500 text-sm">Nenhum jogo anterior cadastrado para esta modalidade.</p>
+            )}
+            {!loading && pastMatches.length > 0 && (
+              <div className="space-y-2">
+                {pastMatches.map((m) => (
+                  <Card key={m.id} className="p-4 bg-neutral-900 border border-neutral-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExpandedMatchId((prev) => (prev === m.id ? null : m.id));
+                        if (expandedMatchId !== m.id) loadMatchStats(m.id);
+                      }}
+                      className="w-full text-left"
+                    >
+                      <p className="font-semibold text-neutral-50">
+                        Westham x {m.adversario}
+                        {(m.gols_westham != null && m.gols_adversario != null) && (
+                          <span className="ml-2 text-orange-400">
+                            {m.gols_westham} x {m.gols_adversario}
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-sm text-neutral-400">
+                        {new Date(m.data).toLocaleString('pt-BR', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}{' '}
+                        · {m.local}
+                      </p>
+                    </button>
+                    {expandedMatchId === m.id && (
+                      <div className="mt-4 pt-4 border-t border-neutral-700 space-y-3">
+                        {(m.gols_westham != null && m.gols_adversario != null) && (
+                          <p className="text-lg font-bold text-orange-400">
+                            Placar: Westham {m.gols_westham} x {m.gols_adversario} {m.adversario}
+                          </p>
+                        )}
+                        {matchStats[m.id]?.length ? (
+                          <>
+                            <div>
+                              <p className="text-sm font-semibold text-neutral-300 mb-1">Gols na partida</p>
+                              <ul className="text-sm text-neutral-400 space-y-0.5">
+                                {matchStats[m.id]
+                                  .filter((x) => x.gols > 0)
+                                  .map((x) => (
+                                    <li key={x.player_id}>
+                                      {x.nome} #{x.numero} — {x.gols} {x.gols === 1 ? 'gol' : 'gols'}
+                                    </li>
+                                  ))}
+                                {matchStats[m.id].filter((x) => x.gols > 0).length === 0 && (
+                                  <li>Nenhum gol registrado por jogador.</li>
+                                )}
+                              </ul>
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-neutral-300 mb-1">Assistências na partida</p>
+                              <ul className="text-sm text-neutral-400 space-y-0.5">
+                                {matchStats[m.id]
+                                  .filter((x) => x.assistencias > 0)
+                                  .map((x) => (
+                                    <li key={x.player_id}>
+                                      {x.nome} #{x.numero} — {x.assistencias} {x.assistencias === 1 ? 'assistência' : 'assistências'}
+                                    </li>
+                                  ))}
+                                {matchStats[m.id].filter((x) => x.assistencias > 0).length === 0 && (
+                                  <li>Nenhuma assistência registrada.</li>
+                                )}
+                              </ul>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-neutral-500 text-sm">Nenhum gol ou assistência cadastrado para esta partida. O admin pode preencher ao editar a partida.</p>
+                        )}
+                      </div>
+                    )}
                   </Card>
                 ))}
               </div>
@@ -304,40 +358,37 @@ export default function JogosModalidadePage() {
             )}
           </section>
 
-          {/* Jogadores destaque (máx 3) */}
+          {/* Jogadores Destaque: artilheiro (auto), melhor assistências (auto), melhor goleiro (admin) */}
           <section>
-            <h2 className="text-xl font-bold text-neutral-200 mb-4">Destaques</h2>
-            {!loading && destaquesPlayers.length === 0 && (
+            <h2 className="text-xl font-bold text-neutral-200 mb-4">Jogadores Destaque</h2>
+            {!loading && !melhorGoleiro && !artilheiro && !melhorAssistente && (
               <p className="text-neutral-500 text-sm">
-                Nenhum jogador em destaque para esta modalidade. O admin pode marcar no painel (Editar Jogador → Marcar como destaque).
+                Nenhum jogador destaque para esta modalidade. O artilheiro e o melhor em assistências são calculados automaticamente; o admin marca o melhor goleiro na edição do jogador.
               </p>
             )}
-            {destaquesPlayers.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                {destaquesPlayers.map((p) => (
-                  <Card key={p.id} className="p-4 bg-neutral-900 border border-neutral-800 flex flex-col items-center text-center">
-                    {p.foto_url ? (
-                      <div className="w-20 h-20 rounded-full overflow-hidden mb-2 border-2 border-orange-500/50 aspect-square">
-                        <img
-                          src={p.foto_url}
-                          alt={p.nome}
-                          className="w-full h-full object-cover object-center"
-                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-20 h-20 rounded-full bg-neutral-700 flex items-center justify-center mb-2 text-orange-400 text-2xl font-bold">
-                        {p.nome?.charAt(0) ?? '?'}
-                      </div>
-                    )}
-                    <p className="font-semibold text-neutral-100">{p.nome}</p>
-                    <p className="text-sm text-orange-400">#{p.numero ?? p.numero_camisa ?? '?'} · {p.posicao ?? '—'}</p>
-                    <p className="text-xs text-neutral-400">{p.gols ?? 0} gols</p>
-                    <p className="text-xs text-neutral-500 mt-1">
-                      🟨 {p.cartoes_amarelos ?? 0} · 🟥 {p.cartoes_vermelhos ?? 0}
-                    </p>
+            {(melhorGoleiro || artilheiro || melhorAssistente) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {artilheiro && (
+                  <Card className="p-4 bg-neutral-900 border border-neutral-800 text-center">
+                    <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1">Artilheiro</p>
+                    <p className="font-bold text-orange-400">{artilheiro.nome}</p>
+                    <p className="text-sm text-neutral-400">#{artilheiro.numero ?? artilheiro.numero_camisa ?? '?'} · {artilheiro[golsKey] ?? 0} gols</p>
                   </Card>
-                ))}
+                )}
+                {melhorAssistente && (
+                  <Card className="p-4 bg-neutral-900 border border-neutral-800 text-center">
+                    <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1">Melhor em assistências</p>
+                    <p className="font-bold text-orange-400">{melhorAssistente.nome}</p>
+                    <p className="text-sm text-neutral-400">#{melhorAssistente.numero ?? melhorAssistente.numero_camisa ?? '?'} · {melhorAssistente[assistsKey] ?? 0} assistências</p>
+                  </Card>
+                )}
+                {melhorGoleiro && (
+                  <Card className="p-4 bg-neutral-900 border border-neutral-800 text-center">
+                    <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1">Melhor goleiro</p>
+                    <p className="font-bold text-orange-400">{melhorGoleiro.nome}</p>
+                    <p className="text-sm text-neutral-400">#{melhorGoleiro.numero ?? melhorGoleiro.numero_camisa ?? '?'}</p>
+                  </Card>
+                )}
               </div>
             )}
           </section>

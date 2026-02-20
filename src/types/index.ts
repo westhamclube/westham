@@ -49,6 +49,11 @@ export interface User {
   instagram_url?: string;
   facebook_url?: string;
   tiktok_url?: string;
+  cep?: string;
+  logradouro?: string;
+  numero?: string;
+  bairro?: string;
+  data_nascimento?: string;
 }
 
 // Interface do jogador
@@ -200,4 +205,10 @@ export interface SignupData {
   sobrenome: string;
   cpf: string;
   telefone: string;
+  cep?: string;
+  logradouro?: string;
+  numero?: string;
+  bairro?: string;
+  data_nascimento?: string;
+  interesse_socio?: boolean;
 }

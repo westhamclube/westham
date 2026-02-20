@@ -239,7 +239,15 @@ export default function HomePage() {
                 </p>
 
                 {!user && (
-                  <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex flex-col sm:flex-row gap-4 flex-wrap items-center">
+                    <Link href="/signup">
+                      <Button
+                        size="lg"
+                        className="bg-orange-600 hover:bg-orange-500 text-white shadow-lg border border-orange-400"
+                      >
+                        Virar sócio do clube
+                      </Button>
+                    </Link>
                     <Link href="/marcar-amistoso">
                       <Button
                         size="lg"

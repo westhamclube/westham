@@ -14,6 +14,11 @@ export default function PerfilPage() {
   const [nome, setNome] = useState('');
   const [sobrenome, setSobrenome] = useState('');
   const [telefone, setTelefone] = useState('');
+  const [cep, setCep] = useState('');
+  const [logradouro, setLogradouro] = useState('');
+  const [numero, setNumero] = useState('');
+  const [bairro, setBairro] = useState('');
+  const [dataNascimento, setDataNascimento] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -35,6 +40,11 @@ export default function PerfilPage() {
       setNome(user.nome || '');
       setSobrenome(user.sobrenome || '');
       setTelefone(user.telefone || '');
+      setCep(user.cep || '');
+      setLogradouro(user.logradouro || '');
+      setNumero(user.numero || '');
+      setBairro(user.bairro || '');
+      setDataNascimento(user.data_nascimento ? user.data_nascimento.slice(0, 10) : '');
       setAvatarUrl(user.avatar_url || '');
       setInstagramUrl((user as any).instagram_url || '');
       setFacebookUrl((user as any).facebook_url || '');
@@ -108,6 +118,11 @@ export default function PerfilPage() {
           instagram_url: instagramUrl.trim() || null,
           facebook_url: facebookUrl.trim() || null,
           tiktok_url: tiktokUrl.trim() || null,
+          cep: cep.trim() || null,
+          logradouro: logradouro.trim() || null,
+          numero: numero.trim() || null,
+          bairro: bairro.trim() || null,
+          data_nascimento: dataNascimento.trim() || null,
         })
         .eq('id', user.id);
 
@@ -231,11 +246,20 @@ export default function PerfilPage() {
                   </span>
                 )}
               </div>
-              <div className="text-center sm:text-left">
+              <div className="text-center sm:text-left flex-1">
                 <p className="font-bold text-neutral-900">
                   {user.nome} {user.sobrenome}
                 </p>
                 <p className="text-sm text-neutral-500">{user.email}</p>
+                {user.cpf && <p className="text-sm text-neutral-600 mt-1"><span className="font-semibold">CPF:</span> {user.cpf}</p>}
+                {user.data_nascimento && <p className="text-sm text-neutral-600"><span className="font-semibold">Nascimento:</span> {new Date(user.data_nascimento).toLocaleDateString('pt-BR')}</p>}
+                {(user.cep || user.logradouro || user.numero || user.bairro) && (
+                  <p className="text-sm text-neutral-600 mt-1">
+                    <span className="font-semibold">Endereço:</span>{' '}
+                    {[user.logradouro, user.numero, user.bairro].filter(Boolean).join(', ')}
+                    {user.cep && ` — CEP: ${user.cep}`}
+                  </p>
+                )}
                 <div className="mt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs">
                   <span className="inline-block px-3 py-1 rounded-full bg-orange-500/20 text-orange-700 font-semibold">
                     Carteira de Sócio
@@ -365,6 +389,44 @@ export default function PerfilPage() {
                   value={telefone}
                   onChange={(e) => setTelefone(e.target.value)}
                 />
+                <Input
+                  label="CPF"
+                  value={user.cpf || ''}
+                  disabled
+                  className="bg-neutral-100 cursor-not-allowed"
+                />
+                <Input
+                  label="Data de nascimento"
+                  type="date"
+                  value={dataNascimento}
+                  onChange={(e) => setDataNascimento(e.target.value)}
+                />
+                <Input
+                  label="CEP"
+                  placeholder="00000-000"
+                  value={cep}
+                  onChange={(e) => setCep(e.target.value)}
+                />
+                <Input
+                  label="Logradouro"
+                  placeholder="Rua, avenida..."
+                  value={logradouro}
+                  onChange={(e) => setLogradouro(e.target.value)}
+                />
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <Input
+                    label="Número"
+                    placeholder="Nº"
+                    value={numero}
+                    onChange={(e) => setNumero(e.target.value)}
+                  />
+                  <Input
+                    label="Bairro"
+                    placeholder="Bairro"
+                    value={bairro}
+                    onChange={(e) => setBairro(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
 
