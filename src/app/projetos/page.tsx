@@ -45,6 +45,7 @@ export default function ProjetosPage() {
   const [inscricaoMsg, setInscricaoMsg] = useState('');
   const [inscricaoLoading, setInscricaoLoading] = useState(false);
   const [inscricaoSent, setInscricaoSent] = useState(false);
+  const [verMaisProject, setVerMaisProject] = useState<Project | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -167,6 +168,9 @@ ${inscricaoMsg || '(não informada)'}`;
                     )}
                   </div>
                   <p className="text-sm text-neutral-200 mb-3 line-clamp-3">{p.descricao}</p>
+                  <button type="button" onClick={() => setVerMaisProject(p)} className="text-sm text-orange-400 hover:text-orange-300 font-medium mb-2 text-left">
+                    Ver mais
+                  </button>
                   <div className="mt-auto flex flex-col gap-2">
                     <div className="flex justify-between text-xs text-neutral-400">
                       <span
@@ -197,6 +201,35 @@ ${inscricaoMsg || '(não informada)'}`;
             ))}
           </div>
         </div>
+
+        {verMaisProject && (
+          <>
+            <div className="fixed inset-0 z-40 bg-black/60" onClick={() => setVerMaisProject(null)} aria-hidden />
+            <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-lg max-h-[90vh] overflow-y-auto bg-neutral-900 border border-neutral-600 rounded-2xl shadow-2xl p-6">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-xl font-bold text-orange-300">{verMaisProject.titulo}</h3>
+                <button type="button" onClick={() => setVerMaisProject(null)} className="text-neutral-400 hover:text-white p-1">✕</button>
+              </div>
+              {verMaisProject.imagem_capa_url && (
+                <div className="w-full aspect-video mb-4 rounded-lg overflow-hidden bg-neutral-800">
+                  <img src={verMaisProject.imagem_capa_url} alt={verMaisProject.titulo} className="w-full h-full object-cover" />
+                </div>
+              )}
+              <p className="text-neutral-200 text-sm whitespace-pre-wrap mb-4">{verMaisProject.descricao}</p>
+              <div className="flex flex-wrap gap-2 text-xs">
+                {verMaisProject.tipo && <span className="px-2 py-1 rounded-full bg-orange-500/20 text-orange-200">{verMaisProject.tipo}</span>}
+                <span className={`px-2 py-1 rounded-full ${verMaisProject.status === 'ativo' ? 'bg-emerald-900/40 text-emerald-300' : verMaisProject.status === 'inscricoes_abertas' ? 'bg-orange-900/40 text-orange-300' : 'bg-neutral-700 text-neutral-300'}`}>
+                  {verMaisProject.status === 'inscricoes_abertas' ? 'Inscrições abertas' : verMaisProject.status === 'encerrado' ? 'Encerrado' : 'Ativo'}
+                </span>
+              </div>
+              {(verMaisProject.status === 'inscricoes_abertas' || verMaisProject.status === 'ativo') && (
+                <Button className="w-full mt-4" onClick={() => { setVerMaisProject(null); setInscreverProject(verMaisProject); }}>
+                  Inscrever-se
+                </Button>
+              )}
+            </div>
+          </>
+        )}
 
         {inscreverProject && (
           <>

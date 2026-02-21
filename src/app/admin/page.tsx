@@ -64,6 +64,16 @@ function guessImgurDirect(url: string) {
   return url;
 }
 
+function toLocalDatetimeInput(dateStr: string): string {
+  const d = new Date(dateStr);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const h = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${day}T${h}:${min}`;
+}
+
 export default function AdminPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -972,7 +982,7 @@ export default function AdminPage() {
 
   const handleEditMatch = async (m: any) => {
     setEditingMatch(m.id);
-    setMatchData(m.data ? new Date(m.data).toISOString().slice(0, 16) : '');
+    setMatchData(m.data ? toLocalDatetimeInput(m.data) : '');
     setMatchAdversario(m.adversario || '');
     setMatchLocal(m.local || '');
     setMatchTipo(m.tipo === 'campeonato' ? 'campeonato' : 'amistoso');
@@ -1135,11 +1145,13 @@ export default function AdminPage() {
                         <td className="py-3 px-4">
                           <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
                             user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                            user.role === 'diretor' ? 'bg-amber-100 text-amber-800' :
                             user.role === 'sócio' ? 'bg-orange-100 text-orange-800' :
                             'bg-blue-100 text-blue-800'
                           }`}>
                             {user.role === 'usuário' ? '👤 Usuário' :
                              user.role === 'sócio' ? '⭐ Sócio' :
+                             user.role === 'diretor' ? '📋 Diretor' :
                              '👑 Admin'}
                           </span>
                         </td>
@@ -1149,9 +1161,9 @@ export default function AdminPage() {
                             className="px-3 py-2 border-2 border-neutral-300 rounded-lg focus:border-orange-500 bg-white text-neutral-900"
                           >
                             <option value="">-- Selecione --</option>
-                            {['usuário','sócio','jogador','admin'].filter(r => r !== user.role).map((r) => (
+                            {['usuário','sócio','jogador','diretor','admin'].filter(r => r !== user.role).map((r) => (
                               <option key={r} value={r}>
-                                {r === 'usuário' ? '👤 Rebaixar para Usuário' : r === 'sócio' ? '⭐ Definir como Sócio' : r === 'jogador' ? '⚽ Definir como Jogador' : '👑 Definir como Admin'}
+                                {r === 'usuário' ? '👤 Rebaixar para Usuário' : r === 'sócio' ? '⭐ Definir como Sócio' : r === 'jogador' ? '⚽ Definir como Jogador' : r === 'diretor' ? '📋 Definir como Diretor' : '👑 Definir como Admin'}
                               </option>
                             ))}
                           </select>
@@ -1890,42 +1902,43 @@ export default function AdminPage() {
                   <div>
                     <label className="text-sm font-semibold text-gray-700 block mb-1">Posição</label>
                     <select
-                      value={(() => {
-                        const u = (playerPosition || '').toUpperCase();
-                        if (u.includes('GOL') || u.includes('GOLEIRO')) return 'GOL';
-                        if (u.includes('ZAG') || u.includes('ZAGUEIRO')) return 'ZAG';
-                        if (u.includes('VOL') || u.includes('VOLANTE')) return 'VOL';
-                        if (u.includes('MEI') || u.includes('MEIA')) return 'MEI';
-                        if (u.includes('ATA') || u.includes('ATACANTE') || u === 'AT') return 'ATA';
-                        return playerPosition || 'MEI';
-                      })()}
+                      value={playerPosition}
                       onChange={(e) => setPlayerPosition(e.target.value)}
                       className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-600 bg-white text-gray-900"
                     >
+                      <option value="">Selecione a posição</option>
                       {(() => {
-                        const LIMITES: Record<string, number> = { GOL: 1, ZAG: 5, VOL: 4, MEI: 6, ATA: 4 };
+                        const POSICOES_LIMITE: Record<string, number> = { GOL: 1, ZAG: 5, VOL: 4, MEI: 6, ATA: 4, ALA: 99, FIXO: 99, PIVÔ: 99, LATERAL: 99 };
                         const norm = (p: string) => {
-                          const u = (p || '').toUpperCase();
+                          if (!p || !p.trim()) return '';
+                          const u = (p || '').toUpperCase().trim();
                           if (u.includes('GOL') || u.includes('GOLEIRO')) return 'GOL';
                           if (u.includes('ZAG') || u.includes('ZAGUEIRO')) return 'ZAG';
                           if (u.includes('VOL') || u.includes('VOLANTE')) return 'VOL';
                           if (u.includes('MEI') || u.includes('MEIA')) return 'MEI';
                           if (u.includes('ATA') || u.includes('ATACANTE') || u === 'AT') return 'ATA';
-                          return u || 'MEI';
+                          if (u.includes('ALA')) return 'ALA';
+                          if (u.includes('FIXO')) return 'FIXO';
+                          if (u.includes('PIVÔ') || u.includes('PIVO')) return 'PIVÔ';
+                          if (u.includes('LATERAL')) return 'LATERAL';
+                          return u;
                         };
-                        const counts: Record<string, number> = { GOL: 0, ZAG: 0, VOL: 0, MEI: 0, ATA: 0 };
+                        const counts: Record<string, number> = {};
+                        const posicoes = ['GOL', 'ZAG', 'VOL', 'MEI', 'ATA', 'ALA', 'FIXO', 'PIVÔ', 'LATERAL'];
+                        posicoes.forEach((pos) => { counts[pos] = 0; });
                         playersList.forEach((p) => {
                           const n = norm(p.posicao);
-                          if (n in counts && (p.id !== editingPlayer?.id)) counts[n]++;
+                          if (n && (p.id !== editingPlayer?.id)) counts[n] = (counts[n] ?? 0) + 1;
                         });
-                        const currentNorm = norm(playerPosition || '');
-                        return ['GOL', 'ZAG', 'VOL', 'MEI', 'ATA'].map((pos) => {
-                          const atLimit = counts[pos] >= (LIMITES[pos] ?? 99);
+                        const currentNorm = norm(playerPosition);
+                        return posicoes.map((pos) => {
+                          const limit = POSICOES_LIMITE[pos] ?? 99;
+                          const atLimit = (counts[pos] ?? 0) >= limit;
                           const isCurrent = editingPlayer && (currentNorm === pos || norm(editingPlayer.posicao) === pos);
                           const disabled = atLimit && !isCurrent;
                           return (
                             <option key={pos} value={pos} disabled={disabled}>
-                              {pos} {disabled ? `(limite ${LIMITES[pos]} atingido)` : ''}
+                              {pos} {disabled ? `(limite ${limit} atingido)` : ''}
                             </option>
                           );
                         });

@@ -83,6 +83,11 @@ export function Header() {
                   💰 Caixa
                 </Link>
               )}
+              {(user.role === 'diretor' || user.role === 'admin') && (
+                <Link href="/diretoria" className="px-3 py-1 rounded-full border border-amber-400/60 text-xs font-semibold hover:bg-amber-500/20 transition" onClick={() => setMenuOpen(false)}>
+                  Diretoria
+                </Link>
+              )}
               {user.role === 'admin' && (
                 <Link href="/admin" className="px-3 py-1 rounded-full border border-orange-400/60 text-xs font-semibold hover:bg-orange-500/20 transition" onClick={() => setMenuOpen(false)}>
                   Painel Admin
@@ -140,6 +145,11 @@ export function Header() {
               {hasCashFlowAccess && (
                 <Link href="/caixa" className="px-3 py-2 rounded-lg border border-emerald-400/60 text-sm font-semibold hover:bg-emerald-500/20" onClick={() => setMenuOpen(false)}>
                   💰 Caixa
+                </Link>
+              )}
+              {(user?.role === 'diretor' || user?.role === 'admin') && (
+                <Link href="/diretoria" className="px-3 py-2 rounded-lg border border-amber-400/60 text-sm font-semibold hover:bg-amber-500/20" onClick={() => setMenuOpen(false)}>
+                  Diretoria
                 </Link>
               )}
               {user?.role === 'admin' && (

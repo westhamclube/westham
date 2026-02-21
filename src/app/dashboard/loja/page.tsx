@@ -17,6 +17,7 @@ export default function DashboardLojaPage() {
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedVariations, setSelectedVariations] = useState<Record<string, Record<string, string>>>({});
+  const [verMaisProduct, setVerMaisProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -179,6 +180,9 @@ export default function DashboardLojaPage() {
                 <p className="text-sm text-neutral-300 mb-3 line-clamp-2">
                   {product.descricao}
                 </p>
+                <button type="button" onClick={() => setVerMaisProduct(product)} className="text-sm text-orange-400 hover:text-orange-300 font-medium mb-2">
+                  Ver mais
+                </button>
 
                 {hasSocioDiscount && product.desconto_socio && (
                   <div className="mb-2 bg-emerald-900/40 border border-emerald-500/60 px-3 py-2 rounded text-xs font-semibold text-emerald-200">
@@ -259,6 +263,38 @@ export default function DashboardLojaPage() {
             );
           })}
         </div>
+
+        {verMaisProduct && (
+          <>
+            <div className="fixed inset-0 z-40 bg-black/60" onClick={() => setVerMaisProduct(null)} aria-hidden />
+            <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-lg max-h-[90vh] overflow-y-auto bg-neutral-900 border border-neutral-600 rounded-2xl shadow-2xl p-6">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-xl font-bold text-orange-300">{verMaisProduct.nome}</h3>
+                <button type="button" onClick={() => setVerMaisProduct(null)} className="text-neutral-400 hover:text-white p-1">✕</button>
+              </div>
+              {verMaisProduct.imagem_url && (
+                <div className="w-full aspect-square max-h-64 bg-neutral-800 rounded-lg flex items-center justify-center mb-4 overflow-hidden">
+                  <img src={verMaisProduct.imagem_url} alt={verMaisProduct.nome} className="w-full h-full object-contain" />
+                </div>
+              )}
+              <p className="text-neutral-200 text-sm whitespace-pre-wrap mb-4">{verMaisProduct.descricao}</p>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-2xl font-bold text-orange-400">R$ {(getFinalPrice(verMaisProduct)).toFixed(2)}</span>
+                <span className={`text-xs font-semibold px-3 py-1 rounded ${verMaisProduct.estoque > 0 ? 'bg-green-900/40 text-green-300' : 'bg-red-900/40 text-red-300'}`}>
+                  {verMaisProduct.estoque > 0 ? `Em estoque (${verMaisProduct.estoque})` : 'Indisponível'}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <Button className="flex-1" disabled={verMaisProduct.estoque === 0} onClick={() => { handleComprar(verMaisProduct); setVerMaisProduct(null); }}>
+                  Comprar (WhatsApp)
+                </Button>
+                <Button variant="secondary" className="flex-1" disabled={verMaisProduct.estoque === 0} onClick={() => { handleAddToCart(verMaisProduct); setVerMaisProduct(null); }}>
+                  Adicionar ao carrinho
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
 
         {cart.length > 0 && (
           <Card className="bg-neutral-900 border border-neutral-700 p-6">

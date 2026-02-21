@@ -1,5 +1,5 @@
 // Tipos de usuário
-export type UserRole = 'usuário' | 'sócio' | 'jogador' | 'admin' | 'moderador';
+export type UserRole = 'usuário' | 'sócio' | 'jogador' | 'admin' | 'moderador' | 'diretor';
 
 // Categorias de movimentação de caixa
 export type CashFlowCategory =
