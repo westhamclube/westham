@@ -5,9 +5,9 @@ import { usePathname } from 'next/navigation';
 import { Header } from '@/components/Header';
 
 const MODALIDADES = [
-  { slug: 'campo', label: 'Campo' },
+  { slug: 'campo', label: 'FUT11' },
   { slug: 'fut7', label: 'FUT 7' },
-  { slug: 'futsal', label: 'Futsal' },
+  { slug: 'futsal', label: 'FUTSAL' },
 ] as const;
 
 export default function JogosLayout({

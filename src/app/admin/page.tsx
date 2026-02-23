@@ -64,14 +64,35 @@ function guessImgurDirect(url: string) {
   return url;
 }
 
-function toLocalDatetimeInput(dateStr: string): string {
-  const d = new Date(dateStr);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  const h = String(d.getHours()).padStart(2, '0');
-  const min = String(d.getMinutes()).padStart(2, '0');
-  return `${y}-${m}-${day}T${h}:${min}`;
+/** Converte valor do input datetime-local para texto de exibição "dd/mm/yyyy HH:mm". */
+function datetimeLocalToDisplayText(value: string): string {
+  if (!value || !value.includes('T')) return '';
+  const [datePart, timePart] = value.trim().split('T');
+  const [y, mo, d] = (datePart || '').split('-');
+  const [h, min] = (timePart || '00:00').split(':');
+  if (!y || !mo || !d) return '';
+  return `${d}/${mo}/${y} ${(h ?? '00').padStart(2, '0')}:${(min ?? '00').padStart(2, '0')}`;
+}
+
+/** Converte texto "dd/mm/yyyy HH:mm" (ou "dd/mm/yyyy, HH:mm") para valor do input datetime-local. */
+function displayTextToDatetimeLocal(text: string): string {
+  if (!text || !text.trim()) return '';
+  const normalized = text.trim().replace(',', ' ');
+  const match = normalized.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
+  if (match) {
+    const [, d, mo, y, h, min] = match;
+    return `${y}-${mo.padStart(2, '0')}-${d.padStart(2, '0')}T${h.padStart(2, '0')}:${min}`;
+  }
+  return '';
+}
+
+/** Retorna o texto de data/hora da partida para exibição (sempre como texto). */
+function getMatchDataDisplay(m: { data_text?: string | null; data?: string | null }): string {
+  if (m.data_text) return m.data_text;
+  if (!m.data) return '';
+  const s = String(m.data).replace(' ', 'T');
+  const match = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})/);
+  return match ? `${match[3]}/${match[2]}/${match[1]} ${match[4].padStart(2, '0')}:${match[5]}` : String(m.data);
 }
 
 export default function AdminPage() {
@@ -541,7 +562,7 @@ export default function AdminPage() {
     }
     const atLeastOne = playerJogaCampo || playerJogaFut7 || playerJogaFutsal;
     if (!atLeastOne) {
-      showFeedback('error', 'Marque pelo menos uma modalidade (Campo, FUT 7 ou Futsal).');
+      showFeedback('error', 'Marque pelo menos uma modalidade (FUT11, FUT 7 ou FUTSAL).');
       return;
     }
 
@@ -952,22 +973,31 @@ export default function AdminPage() {
       showFeedback('error', 'Preencha data, adversário e local.');
       return;
     }
-    const dataISO = new Date(matchData).toISOString();
-    const payload: any = { data: dataISO, adversario: matchAdversario.trim(), local: matchLocal.trim(), tipo: matchTipo, modalidade: matchModalidade };
+    const dataText = datetimeLocalToDisplayText(matchData.trim());
+    const [datePart, timePart] = matchData.trim().split('T');
+    const [y, mo, d] = (datePart || '0-1-1').split('-').map(Number);
+    const [h, min] = (timePart || '00:00').split(':').map(Number);
+    const yy = y || new Date().getFullYear();
+    const mm = String(mo || 1).padStart(2, '0');
+    const dd = String(d || 1).padStart(2, '0');
+    const hh = String(h ?? 0).padStart(2, '0');
+    const mmin = String(min ?? 0).padStart(2, '0');
+    const dataForTimestamp = `${yy}-${mm}-${dd} ${hh}:${mmin}:00`;
+    const payload: any = { data: dataForTimestamp, data_text: dataText || null, adversario: matchAdversario.trim(), local: matchLocal.trim(), tipo: matchTipo, modalidade: matchModalidade };
     if (matchGolsWestham !== '' && matchGolsAdversario !== '') {
       payload.gols_westham = Number(matchGolsWestham);
       payload.gols_adversario = Number(matchGolsAdversario);
     }
     if (editingMatch) {
-      const { error } = await supabase.from('matches').update(payload).eq('id', editingMatch);
+      const { data: updated, error } = await supabase.from('matches').update(payload).eq('id', editingMatch).select('*').single();
       if (error) { showFeedback('error', error.message); return; }
-      setMatchesList((prev) => prev.map((m) => (m.id === editingMatch ? { ...m, ...payload } : m)));
+      if (updated) setMatchesList((prev) => prev.map((m) => (m.id === editingMatch ? { ...m, ...updated } : m)));
       showFeedback('success', 'Partida atualizada!');
       setEditingMatch(null);
     } else {
       const { data, error } = await supabase.from('matches').insert(payload).select('*').single();
       if (error) { showFeedback('error', error.message); return; }
-      setMatchesList((prev) => [...prev, data].sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime()));
+      setMatchesList((prev) => [...prev, data].sort((a, b) => (a.data || '').localeCompare(b.data || '')));
       showFeedback('success', 'Partida cadastrada!');
     }
     setMatchData('');
@@ -982,7 +1012,8 @@ export default function AdminPage() {
 
   const handleEditMatch = async (m: any) => {
     setEditingMatch(m.id);
-    setMatchData(m.data ? toLocalDatetimeInput(m.data) : '');
+    const inputValue = m.data_text ? displayTextToDatetimeLocal(m.data_text) : (m.data ? (() => { const s = String(m.data).replace(' ', 'T').replace(/Z$/, ''); const match = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{1,2}):(\d{2})/); return match ? `${match[1]}-${match[2]}-${match[3]}T${match[4].padStart(2, '0')}:${match[5]}` : ''; })() : '');
+    setMatchData(inputValue);
     setMatchAdversario(m.adversario || '');
     setMatchLocal(m.local || '');
     setMatchTipo(m.tipo === 'campeonato' ? 'campeonato' : 'amistoso');
@@ -1363,7 +1394,7 @@ export default function AdminPage() {
           {/* Projetos Tab */}
           {activeTab === 'projects' && (
             <div className="space-y-6">
-              <Card className="shadow-2xl">
+              <Card className="shadow-2xl bg-white border border-gray-200">
                 <h2 className="text-2xl font-bold mb-6 text-gray-800">{editingProject ? '✏️ Editar Projeto' : '📁 Adicionar Projeto'}</h2>
                 <div className="grid md:grid-cols-2 gap-4">
                   <Input label="Título" value={projectTitulo} onChange={(e) => setProjectTitulo(e.target.value)} placeholder="Ex: Escolinha Infantil" />
@@ -1400,14 +1431,14 @@ export default function AdminPage() {
                   {editingProject && <Button size="lg" variant="secondary" onClick={() => { setEditingProject(null); setProjectTitulo(''); setProjectDescricao(''); setProjectImagem(''); setProjectVideo(''); setProjectStatus('ativo'); setProjectTipo(''); setProjectDestaque(false); }}>Cancelar</Button>}
                 </div>
               </Card>
-              <Card className="shadow-2xl">
+              <Card className="shadow-2xl bg-white border border-gray-200">
                 <h2 className="text-2xl font-bold mb-4 text-gray-800">Projetos ({projectsList.length})</h2>
                 {projectsList.length === 0 ? (
                   <p className="text-gray-500 py-6">Nenhum projeto cadastrado.</p>
                 ) : (
                   <div className="space-y-4 max-h-[32rem] overflow-y-auto">
                     {projectsList.map((p) => (
-                      <Card key={p.id} className="hover:shadow-lg">
+                      <Card key={p.id} className="hover:shadow-lg bg-white border border-gray-200">
                         <div className="mb-2">
                           <p className="font-semibold text-gray-800 mb-1">{p.titulo}</p>
                           <p className="text-xs text-gray-500 truncate max-w-md">{p.descricao}</p>
@@ -1439,7 +1470,7 @@ export default function AdminPage() {
                 <div className="grid md:grid-cols-3 gap-6">
                   {(['campo', 'fut7', 'futsal'] as const).map((mod) => {
                     const s = modalidadeStatsList[mod] || { ultimo_resultado: '', gols_total: 0, vitorias: 0, derrotas: 0 };
-                    const label = mod === 'campo' ? 'Campo' : mod === 'fut7' ? 'FUT 7' : 'Futsal';
+                    const label = mod === 'campo' ? 'FUT11' : mod === 'fut7' ? 'FUT 7' : 'FUTSAL';
                     return (
                       <div key={mod} className="p-4 bg-gray-50 rounded-lg border-2 border-gray-200">
                         <h3 className="font-bold text-gray-800 mb-3">{label}</h3>
@@ -1478,9 +1509,9 @@ export default function AdminPage() {
                   })}
                 </div>
               </Card>
-              <Card className="shadow-2xl">
+              <Card className="shadow-2xl bg-white border border-gray-200">
                 <h2 className="text-2xl font-bold mb-4 text-gray-800">📅 Cadastrar Próxima Partida</h2>
-                <p className="text-gray-600 mb-4">As partidas aparecem na tela inicial e nas páginas Campo, FUT 7 e Futsal.</p>
+                <p className="text-gray-600 mb-4">As partidas aparecem na tela inicial e nas páginas FUT11, FUT 7 e FUTSAL.</p>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">Data e Hora</label>
@@ -1496,9 +1527,9 @@ export default function AdminPage() {
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">Modalidade</label>
                     <select value={matchModalidade} onChange={(e) => setMatchModalidade(e.target.value as any)} className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg">
-                      <option value="campo">Campo</option>
+                      <option value="campo">FUT11</option>
                       <option value="fut7">FUT 7</option>
-                      <option value="futsal">Futsal</option>
+                      <option value="futsal">FUTSAL</option>
                     </select>
                   </div>
                   <div>
@@ -1551,7 +1582,7 @@ export default function AdminPage() {
                   </div>
                 )}
               </Card>
-              <Card className="shadow-2xl">
+              <Card className="shadow-2xl bg-white border border-gray-200">
                 <h2 className="text-2xl font-bold mb-4 text-gray-800">Partidas cadastradas ({matchesList.length})</h2>
                 {matchesList.length === 0 ? (
                   <p className="text-gray-500 py-6">Nenhuma partida cadastrada. Adicione acima.</p>
@@ -1572,11 +1603,11 @@ export default function AdminPage() {
                       <tbody>
                         {matchesList.map((m) => (
                           <tr key={m.id} className="border-b border-gray-200">
-                            <td className="py-2 px-3">{m.data ? new Date(m.data).toLocaleString('pt-BR') : ''}</td>
+                            <td className="py-2 px-3">{getMatchDataDisplay(m)}</td>
                             <td className="py-2 px-3 font-medium">{m.adversario}</td>
                             <td className="py-2 px-3">{m.gols_westham != null && m.gols_adversario != null ? `${m.gols_westham} x ${m.gols_adversario}` : '—'}</td>
                             <td className="py-2 px-3">{m.local}</td>
-                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded text-xs bg-orange-100 text-orange-700">{m.modalidade === 'fut7' ? 'FUT 7' : m.modalidade === 'futsal' ? 'Futsal' : 'Campo'}</span></td>
+                            <td className="py-2 px-3"><span className="px-2 py-0.5 rounded text-xs bg-orange-100 text-orange-700">{m.modalidade === 'fut7' ? 'FUT 7' : m.modalidade === 'futsal' ? 'FUTSAL' : 'FUT11'}</span></td>
                             <td className="py-2 px-3">{m.tipo === 'campeonato' ? 'Campeonato' : 'Amistoso'}</td>
                             <td className="py-2 px-3">
                               <Button size="sm" variant="secondary" className="mr-2" onClick={() => handleEditMatch(m)}>Editar</Button>
@@ -1594,7 +1625,7 @@ export default function AdminPage() {
 
           {/* História do clube */}
           {activeTab === 'historia' && (
-            <Card className="shadow-2xl">
+            <Card className="shadow-2xl bg-white border border-gray-200">
               <h2 className="text-2xl font-bold mb-2 text-gray-800">📜 História do Westham</h2>
               <p className="text-gray-600 mb-6">
                 Edite o texto e as fotos da página /historia. (Execute a migração SQL no Supabase se as tabelas club_history e club_history_photos não existirem.)
@@ -1710,7 +1741,7 @@ export default function AdminPage() {
           {/* News Tab */}
           {activeTab === 'news' && (
             <div className="grid lg:grid-cols-3 gap-8">
-              <Card className="lg:col-span-2 shadow-2xl">
+              <Card className="lg:col-span-2 shadow-2xl bg-white border border-gray-200">
                 <h2 className="text-2xl font-bold mb-6 text-gray-800">
                   {editingNews ? '✏️ Editar Notícia' : '📰 Publicar Nova Notícia'}
                 </h2>
@@ -1746,9 +1777,9 @@ export default function AdminPage() {
                         onChange={(e) => setNewsModalidade(e.target.value as NewsModalidade)}
                         className="px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-600 focus:outline-none"
                       >
-                        <option value="campo">Campo</option>
-                        <option value="futsal">Futsal</option>
-                        <option value="fut7">FUT7</option>
+                        <option value="campo">FUT11</option>
+                        <option value="fut7">FUT 7</option>
+                        <option value="futsal">FUTSAL</option>
                       </select>
                     </div>
                   </div>
@@ -1847,7 +1878,7 @@ export default function AdminPage() {
                 <h2 className="text-2xl font-bold mb-6 text-gray-800">Notícias ({newsList.length})</h2>
                 <div className="space-y-4 max-h-96 overflow-y-auto">
                   {newsList.map((news) => (
-                    <Card key={news.id} className="hover:shadow-lg">
+                    <Card key={news.id} className="hover:shadow-lg bg-white border border-gray-200">
                       <div className="mb-2">
                         <p className="font-semibold text-gray-800 mb-1">{news.titulo}</p>
                         <p className="text-xs text-gray-500">{news.data_criacao}{(news as any).destaque ? ' · ⭐ Destaque' : ''}</p>
@@ -1882,7 +1913,7 @@ export default function AdminPage() {
           {/* Players Tab */}
           {activeTab === 'players' && (
             <div className="space-y-6">
-              <Card className="shadow-2xl">
+              <Card className="shadow-2xl bg-white border border-gray-200">
                 <h2 className="text-2xl font-bold mb-6 text-gray-800">{editingPlayer ? '✏️ Editar Jogador' : '⚽ Adicionar Novo Jogador'}</h2>
 
                 <div className="grid md:grid-cols-2 gap-4">
@@ -1979,17 +2010,17 @@ export default function AdminPage() {
                           <div>
                             <span className="font-bold text-gray-900 block mb-2">Gols por modalidade</span>
                             <div className="grid grid-cols-3 gap-3">
-                              <Input label="Campo" type="number" min={0} value={String(editPlayerGolsCampo)} onChange={(e) => setEditPlayerGolsCampo(parseInt(e.target.value) || 0)} className="bg-white" />
+                              <Input label="FUT11" type="number" min={0} value={String(editPlayerGolsCampo)} onChange={(e) => setEditPlayerGolsCampo(parseInt(e.target.value) || 0)} className="bg-white" />
                               <Input label="FUT 7" type="number" min={0} value={String(editPlayerGolsFut7)} onChange={(e) => setEditPlayerGolsFut7(parseInt(e.target.value) || 0)} className="bg-white" />
-                              <Input label="Futsal" type="number" min={0} value={String(editPlayerGolsFutsal)} onChange={(e) => setEditPlayerGolsFutsal(parseInt(e.target.value) || 0)} className="bg-white" />
+                              <Input label="FUTSAL" type="number" min={0} value={String(editPlayerGolsFutsal)} onChange={(e) => setEditPlayerGolsFutsal(parseInt(e.target.value) || 0)} className="bg-white" />
                             </div>
                           </div>
                           <div>
                             <span className="font-bold text-gray-900 block mb-2">Assistências por modalidade</span>
                             <div className="grid grid-cols-3 gap-3">
-                              <Input label="Campo" type="number" min={0} value={String(editPlayerAssistCampo)} onChange={(e) => setEditPlayerAssistCampo(parseInt(e.target.value) || 0)} className="bg-white" />
+                              <Input label="FUT11" type="number" min={0} value={String(editPlayerAssistCampo)} onChange={(e) => setEditPlayerAssistCampo(parseInt(e.target.value) || 0)} className="bg-white" />
                               <Input label="FUT 7" type="number" min={0} value={String(editPlayerAssistFut7)} onChange={(e) => setEditPlayerAssistFut7(parseInt(e.target.value) || 0)} className="bg-white" />
-                              <Input label="Futsal" type="number" min={0} value={String(editPlayerAssistFutsal)} onChange={(e) => setEditPlayerAssistFutsal(parseInt(e.target.value) || 0)} className="bg-white" />
+                              <Input label="FUTSAL" type="number" min={0} value={String(editPlayerAssistFutsal)} onChange={(e) => setEditPlayerAssistFutsal(parseInt(e.target.value) || 0)} className="bg-white" />
                             </div>
                           </div>
                           <div>
@@ -1997,7 +2028,7 @@ export default function AdminPage() {
                             <div className="flex flex-wrap gap-4">
                               <label className="flex items-center gap-2 cursor-pointer">
                                 <input type="checkbox" checked={editPlayerMelhorGoleiroCampo} onChange={(e) => setEditPlayerMelhorGoleiroCampo(e.target.checked)} className="w-5 h-5 rounded border-gray-400" />
-                                <span className="font-medium text-gray-900">Campo</span>
+                                <span className="font-medium text-gray-900">FUT11</span>
                               </label>
                               <label className="flex items-center gap-2 cursor-pointer">
                                 <input type="checkbox" checked={editPlayerMelhorGoleiroFut7} onChange={(e) => setEditPlayerMelhorGoleiroFut7(e.target.checked)} className="w-5 h-5 rounded border-gray-400" />
@@ -2005,7 +2036,7 @@ export default function AdminPage() {
                               </label>
                               <label className="flex items-center gap-2 cursor-pointer">
                                 <input type="checkbox" checked={editPlayerMelhorGoleiroFutsal} onChange={(e) => setEditPlayerMelhorGoleiroFutsal(e.target.checked)} className="w-5 h-5 rounded border-gray-400" />
-                                <span className="font-medium text-gray-900">Futsal</span>
+                                <span className="font-medium text-gray-900">FUTSAL</span>
                               </label>
                             </div>
                           </div>
@@ -2025,7 +2056,7 @@ export default function AdminPage() {
                         onChange={(e) => setPlayerJogaCampo(e.target.checked)}
                         className="w-5 h-5 rounded border-gray-300"
                       />
-                      <span className="font-medium text-gray-800">Campo</span>
+                      <span className="font-medium text-gray-800">FUT11</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -2043,7 +2074,7 @@ export default function AdminPage() {
                         onChange={(e) => setPlayerJogaFutsal(e.target.checked)}
                         className="w-5 h-5 rounded border-gray-300"
                       />
-                      <span className="font-medium text-gray-800">Futsal</span>
+                      <span className="font-medium text-gray-800">FUTSAL</span>
                     </label>
                   </div>
                 </div>
@@ -2061,7 +2092,7 @@ export default function AdminPage() {
               </Card>
 
               {/* Players List */}
-              <Card className="shadow-2xl">
+              <Card className="shadow-2xl bg-white border border-gray-200">
                 <h2 className="text-2xl font-bold mb-6 text-gray-800">Lista de Jogadores ({playersList.length})</h2>
 
                 <div className="overflow-x-auto">
@@ -2093,9 +2124,9 @@ export default function AdminPage() {
                           <td className="py-3 px-4 text-gray-600">{player.posicao}</td>
                           <td className="py-3 px-4">
                             <span className="flex flex-wrap gap-1">
-                              {jogaCampo && <span className="px-2 py-0.5 rounded bg-green-100 text-green-800 text-xs">Campo</span>}
+                              {jogaCampo && <span className="px-2 py-0.5 rounded bg-green-100 text-green-800 text-xs">FUT11</span>}
                               {jogaFut7 && <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-xs">FUT 7</span>}
-                              {jogaFutsal && <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 text-xs">Futsal</span>}
+                              {jogaFutsal && <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 text-xs">FUTSAL</span>}
                               {!jogaCampo && !jogaFut7 && !jogaFutsal && <span className="text-gray-400 text-xs">—</span>}
                             </span>
                           </td>
@@ -2127,7 +2158,7 @@ export default function AdminPage() {
           {activeTab === 'shop' && (
             <div className="space-y-6">
               {/* Add Product Form */}
-              <Card className="shadow-2xl">
+              <Card className="shadow-2xl bg-white border border-gray-200">
                 <h2 className="text-2xl font-bold mb-6 text-gray-800">
                   {editingProduct ? '✏️ Editar Produto' : '🛍️ Adicionar Novo Produto'}
                 </h2>
@@ -2362,7 +2393,7 @@ export default function AdminPage() {
               </Card>
 
               {/* Products Grid */}
-              <Card className="shadow-2xl">
+              <Card className="shadow-2xl bg-white border border-gray-200">
                 <h2 className="text-2xl font-bold mb-6 text-gray-800">Produtos da Loja ({productsList.length})</h2>
 
                 {productsList.length === 0 ? (

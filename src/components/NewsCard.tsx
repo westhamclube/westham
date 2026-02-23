@@ -32,8 +32,8 @@ export function NewsCard({ news, onUpdate, onDelete, onEdit }: NewsCardProps) {
   const modalidadeLabel = (() => {
     const m = (localNews.modalidade || '').toLowerCase();
     if (m === 'fut7') return 'FUT7';
-    if (m === 'futsal') return 'Futsal';
-    if (m === 'campo') return 'Campo';
+    if (m === 'futsal') return 'FUTSAL';
+    if (m === 'campo') return 'FUT11';
     return null;
   })();
 

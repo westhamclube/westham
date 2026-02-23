@@ -89,7 +89,7 @@ export default function NoticiaDetalhePage() {
     );
   }
 
-  const modalidadeLabel = news.modalidade === 'fut7' ? 'FUT 7' : news.modalidade === 'futsal' ? 'Futsal' : news.modalidade === 'campo' ? 'Campo' : null;
+  const modalidadeLabel = news.modalidade === 'fut7' ? 'FUT 7' : news.modalidade === 'futsal' ? 'FUTSAL' : news.modalidade === 'campo' ? 'FUT11' : null;
   const catLabel = CAT_LABELS[news.categoria] || news.categoria || 'Geral';
   const videoEmbed = news.video_url ? getYouTubeEmbed(news.video_url) : null;
 

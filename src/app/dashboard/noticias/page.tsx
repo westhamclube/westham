@@ -89,8 +89,8 @@ export default function DashboardNoticiasPage() {
           >
             <option value="todas">Todas</option>
             <option value="redes">Redes sociais</option>
-            <option value="campo">Campo</option>
-            <option value="futsal">Futsal</option>
+            <option value="campo">FUT11</option>
+            <option value="futsal">FUTSAL</option>
             <option value="fut7">FUT7</option>
           </select>
         </div>

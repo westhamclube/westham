@@ -163,6 +163,8 @@ export interface LineupPlayer {
 export interface Match {
   id: string;
   data: string;
+  /** Data/hora para exibição em texto (ex.: "22/02/2026 23:00"). */
+  data_text?: string | null;
   adversario: string;
   local: string;
   resultado?: string;

@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { News, NewsModalidade } from '@/types';
 
-type MatchRow = { id: string; data: string; adversario: string; local: string; modalidade?: string };
+type MatchRow = { id: string; data: string; data_text?: string | null; adversario: string; local: string; modalidade?: string };
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -20,9 +20,12 @@ export default function HomePage() {
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [monthlyMatches, setMonthlyMatches] = useState<MatchRow[]>([]);
   const [loadingMatches, setLoadingMatches] = useState(true);
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [showAddToHomePopup, setShowAddToHomePopup] = useState(false);
+  const [showAniversariantesPopup, setShowAniversariantesPopup] = useState(false);
+  const [aniversariantesDia, setAniversariantesDia] = useState<{ nome: string; data_nascimento: string }[]>([]);
+  const [aniversariantesMes, setAniversariantesMes] = useState<{ nome: string; data_nascimento: string }[]>([]);
+  const [loadingAniversariantes, setLoadingAniversariantes] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any | null>(null);
-  const [showInstallInstructions, setShowInstallInstructions] = useState(false);
 
   useEffect(() => {
     const loadNews = async () => {
@@ -66,7 +69,7 @@ export default function HomePage() {
       const endOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0, 23, 59, 59);
       const [productsRes, matchesRes] = await Promise.all([
         supabase.from('store_products').select('*').eq('ativo', true).order('created_at', { ascending: false }).limit(8),
-        supabase.from('matches').select('id, data, adversario, local, modalidade').gte('data', now.toISOString()).lte('data', endOfNextMonth.toISOString()).order('data', { ascending: true }).limit(50),
+        supabase.from('matches').select('id, data, data_text, adversario, local, modalidade').gte('data', now.toISOString()).lte('data', endOfNextMonth.toISOString()).order('data', { ascending: true }).limit(50),
       ]);
       if (!productsRes.error && productsRes.data) {
         const withDestaque = productsRes.data.filter((p: any) => p.destaque === true);
@@ -82,99 +85,77 @@ export default function HomePage() {
     loadFeaturedProductsAndMatches();
   }, []);
 
-  // Banner para incentivar instalação como "app" (PWA)
+  // Popup para adicionar à tela inicial (ao entrar no site)
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
-    const alreadyDismissed = window.localStorage.getItem('westham_install_banner_dismissed');
-    if (!alreadyDismissed) {
-      setShowInstallBanner(true);
+    const dismissed = window.localStorage.getItem('westham_add_to_home_dismissed');
+    if (!dismissed) {
+      setShowAddToHomePopup(true);
     }
-
     const handler = (e: any) => {
-      // Impede o prompt automático e guarda para usar quando o usuário clicar
       e.preventDefault();
       setDeferredPrompt(e);
-      if (!alreadyDismissed) {
-        setShowInstallBanner(true);
-      }
     };
-
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
-  const handleInstallClick = async () => {
+  const handleAddToHomeClick = async () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
-        window.localStorage.setItem('westham_install_banner_dismissed', '1');
-        setShowInstallBanner(false);
+        window.localStorage.setItem('westham_add_to_home_dismissed', '1');
       }
       setDeferredPrompt(null);
-      return;
     }
-    // iOS ou navegador sem beforeinstallprompt: mostrar instruções manuais
-    setShowInstallInstructions(true);
-  };
-
-  const handleDismissBanner = () => {
+    setShowAddToHomePopup(false);
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem('westham_install_banner_dismissed', '1');
+      window.localStorage.setItem('westham_add_to_home_dismissed', '1');
     }
-    setShowInstallBanner(false);
   };
 
-  const modalidadeLabel = (m?: string) => (m === 'fut7' ? 'FUT 7' : m === 'futsal' ? 'Futsal' : m === 'campo' ? 'Campo' : 'Campo');
+  const loadAniversariantes = async () => {
+    setLoadingAniversariantes(true);
+    const now = new Date();
+    const dia = now.getDate();
+    const mes = now.getMonth() + 1;
+    const { data } = await supabase.from('profiles').select('first_name, last_name, full_name, data_nascimento').not('data_nascimento', 'is', null);
+    const profiles = (data || []).filter((p: any) => p.data_nascimento);
+    const diaList: { nome: string; data_nascimento: string }[] = [];
+    const mesList: { nome: string; data_nascimento: string }[] = [];
+    profiles.forEach((p: any) => {
+      const dt = p.data_nascimento;
+      const parts = String(dt).split(/[-/]/);
+      const d = parseInt(parts[2] ?? parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const nome = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.full_name || 'Aniversariante';
+      if (d === dia && m === mes) diaList.push({ nome, data_nascimento: dt });
+      else if (m === mes) mesList.push({ nome, data_nascimento: dt });
+    });
+    setAniversariantesDia(diaList);
+    setAniversariantesMes(mesList);
+    setLoadingAniversariantes(false);
+    setShowAniversariantesPopup(true);
+  };
+
+  const modalidadeLabel = (m?: string) => (m === 'fut7' ? 'FUT 7' : m === 'futsal' ? 'FUTSAL' : m === 'campo' ? 'FUT11' : 'FUT11');
 
   return (
     <>
       <Header />
       <main className="bg-neutral-950 min-h-screen">
-        {showInstallBanner && (
-          <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white text-sm md:text-base">
-            <div className="max-w-7xl mx-auto px-6 py-3 flex flex-col md:flex-row items-center gap-2 md:gap-4 justify-between">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-black/30 border border-white/30 text-lg">
-                  📱
-                </span>
-                <p className="font-medium text-left">
-                  Instale o portal do <strong>Sport Club Westham</strong> na tela inicial do seu
-                  celular para usar como aplicativo.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 self-stretch md:self-auto">
-                <Button
-                  size="sm"
-                  className="bg-black/80 hover:bg-black text-white border border-white/40"
-                  onClick={handleInstallClick}
-                >
-                  Adicionar à tela inicial
-                </Button>
-                <button
-                  onClick={handleDismissBanner}
-                  className="text-xs uppercase tracking-wide hover:text-black/80"
-                >
-                  Fechar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Modal: instruções para adicionar à tela inicial (iOS / quando não há prompt) */}
-        {showInstallInstructions && (
+        {showAddToHomePopup && (
           <>
-            <div className="fixed inset-0 z-50 bg-black/60" aria-hidden="true" onClick={() => setShowInstallInstructions(false)} />
-            <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-md bg-neutral-900 border border-neutral-600 rounded-2xl shadow-2xl p-6 text-white">
+            <div className="fixed inset-0 z-50 bg-black/70" aria-hidden="true" onClick={() => { setShowAddToHomePopup(false); if (typeof window !== 'undefined') window.localStorage.setItem('westham_add_to_home_dismissed', '1'); }} />
+            <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-md bg-neutral-900 border-2 border-orange-500 rounded-2xl shadow-2xl p-6 text-white">
               <div className="flex justify-between items-start gap-4 mb-4">
-                <h3 className="text-lg font-bold text-orange-400">Adicionar à tela inicial</h3>
-                <button type="button" aria-label="Fechar" className="p-1 rounded hover:bg-white/10" onClick={() => setShowInstallInstructions(false)}>
+                <h3 className="text-lg font-bold text-orange-400">📱 Adicione o Westham à tela inicial</h3>
+                <button type="button" aria-label="Fechar" className="p-1 rounded hover:bg-white/10" onClick={() => { setShowAddToHomePopup(false); if (typeof window !== 'undefined') window.localStorage.setItem('westham_add_to_home_dismissed', '1'); }}>
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
-              <p className="text-sm text-neutral-300 mb-4">Siga os passos conforme seu celular:</p>
+              <p className="text-sm text-neutral-300 mb-4">Use o portal do Sport Club Westham como app no seu celular. Siga os passos conforme seu aparelho:</p>
               <div className="space-y-4 text-sm">
                 <div className="bg-neutral-800 rounded-xl p-4">
                   <p className="font-semibold text-white mb-2">📱 iPhone (Safari)</p>
@@ -192,9 +173,54 @@ export default function HomePage() {
                   </ol>
                 </div>
               </div>
-              <Button className="w-full mt-4 bg-orange-600 hover:bg-orange-500" onClick={() => setShowInstallInstructions(false)}>
-                Entendi
-              </Button>
+              <div className="flex gap-2 mt-4">
+                <Button className="flex-1 bg-orange-600 hover:bg-orange-500" onClick={handleAddToHomeClick}>Adicionar à tela inicial</Button>
+                <Button variant="secondary" className="flex-1" onClick={() => { setShowAddToHomePopup(false); if (typeof window !== 'undefined') window.localStorage.setItem('westham_add_to_home_dismissed', '1'); }}>Fechar</Button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {showAniversariantesPopup && (
+          <>
+            <div className="fixed inset-0 z-50 bg-black/70" onClick={() => setShowAniversariantesPopup(false)} aria-hidden />
+            <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[calc(100%-2rem)] max-w-md max-h-[90vh] overflow-y-auto bg-neutral-900 border-2 border-orange-500 rounded-2xl shadow-2xl p-6 text-white">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-lg font-bold text-orange-400">🎂 Aniversariantes</h3>
+                <button type="button" aria-label="Fechar" className="p-1 rounded hover:bg-white/10" onClick={() => setShowAniversariantesPopup(false)}>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              {loadingAniversariantes ? (
+                <p className="text-neutral-400 py-4">Carregando...</p>
+              ) : (
+                <div className="space-y-4">
+                  <Card className="p-4 bg-neutral-800 border-neutral-700">
+                    <h4 className="font-bold text-orange-300 mb-2">Aniversariantes do dia</h4>
+                    {aniversariantesDia.length === 0 ? (
+                      <p className="text-neutral-400 text-sm">Nenhum aniversariante hoje.</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {aniversariantesDia.map((a, i) => (
+                          <li key={i} className="text-neutral-100">{a.nome}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </Card>
+                  <Card className="p-4 bg-neutral-800 border-neutral-700">
+                    <h4 className="font-bold text-orange-300 mb-2">Aniversariantes do mês</h4>
+                    {aniversariantesMes.length === 0 ? (
+                      <p className="text-neutral-400 text-sm">Nenhum aniversariante este mês.</p>
+                    ) : (
+                      <ul className="space-y-1 max-h-40 overflow-y-auto">
+                        {aniversariantesMes.map((a, i) => (
+                          <li key={i} className="text-neutral-100 text-sm">{a.nome} — {new Date(a.data_nascimento).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </Card>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -234,45 +260,54 @@ export default function HomePage() {
                   A casa oficial do Westham na web
                 </h1>
                 <p className="text-lg md:text-xl mb-6 text-orange-100/90">
-                  FUT 7, Campo e Futsal, área do sócio e loja oficial em um só lugar. Notícias,
+                  FUT11, FUT 7 e FUTSAL, área do sócio e loja oficial em um só lugar. Notícias,
                   cronograma de jogos e projetos do clube.
                 </p>
 
-                {!user && (
-                  <div className="flex flex-col sm:flex-row gap-4 flex-wrap items-center">
-                    <Link href="/signup">
-                      <Button
-                        size="lg"
-                        className="bg-orange-600 hover:bg-orange-500 text-white shadow-lg border border-orange-400"
-                      >
-                        Virar sócio do clube
-                      </Button>
-                    </Link>
-                    <Link href="/marcar-amistoso">
-                      <Button
-                        size="lg"
-                        className="bg-orange-500 hover:bg-orange-400 text-black shadow-lg"
-                      >
-                        Quer marcar um amistoso?
-                      </Button>
-                    </Link>
-                    <Link href="/login">
-                      <Button
-                        size="lg"
-                        variant="secondary"
-                        className="bg-transparent border border-orange-400 text-orange-100 hover:bg-orange-500/20"
-                      >
-                        Entrar
-                      </Button>
-                    </Link>
-                    <p className="text-orange-100/80 text-sm self-center">
-                      Ainda não tem conta?{' '}
-                      <Link href="/signup" className="text-orange-300 font-semibold hover:underline">
-                        Cadastre-se
-                      </Link>
-                    </p>
-                  </div>
-                )}
+                <div className="space-y-5">
+                  {/* Links secundários */}
+                  <button
+                    type="button"
+                    onClick={loadAniversariantes}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-orange-500/15 border border-orange-500/40 text-orange-200 hover:bg-orange-500/25 hover:border-orange-400/60 text-sm font-medium transition"
+                  >
+                    🎂 Ver aniversariantes do dia e do mês
+                  </button>
+
+                  {!user && (
+                    <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <Link href="/signup">
+                          <Button
+                            size="lg"
+                            className="w-full sm:w-auto min-w-[200px] bg-orange-600 hover:bg-orange-500 text-white shadow-lg border border-orange-400 font-bold"
+                          >
+                            Virar sócio do clube
+                          </Button>
+                        </Link>
+                        <Link href="/marcar-amistoso">
+                          <Button
+                            size="lg"
+                            className="w-full sm:w-auto min-w-[200px] bg-orange-500/90 hover:bg-orange-500 text-white shadow-lg border border-orange-400/80 font-bold"
+                          >
+                            Quer marcar um amistoso?
+                          </Button>
+                        </Link>
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:pl-2 sm:border-l sm:border-orange-400/40">
+                        <Link href="/login">
+                          <Button
+                            size="lg"
+                            variant="secondary"
+                            className="w-full sm:w-auto bg-transparent border-2 border-orange-400 text-orange-100 hover:bg-orange-500/20 font-semibold"
+                          >
+                            Entrar
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {user && (
                   <div className="flex flex-col sm:flex-row gap-4">
@@ -346,7 +381,7 @@ export default function HomePage() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {newsList.map((news) => {
-              const modalidadeLabel = news.modalidade === 'fut7' ? 'FUT 7' : news.modalidade === 'futsal' ? 'Futsal' : news.modalidade === 'campo' ? 'Campo' : null;
+              const modalidadeLabel = news.modalidade === 'fut7' ? 'FUT 7' : news.modalidade === 'futsal' ? 'FUTSAL' : news.modalidade === 'campo' ? 'FUT11' : null;
               const catLabel = news.categoria === 'general' ? 'Geral' : news.categoria === 'match' ? 'Partida' : news.categoria === 'player' ? 'Jogador' : news.categoria === 'academy' ? 'Academia' : news.categoria === 'social' ? 'Redes sociais' : news.categoria || 'Geral';
               const conteudoLongo = (news.conteudo || '').length > 250;
               return (
@@ -465,7 +500,9 @@ export default function HomePage() {
                 </thead>
                 <tbody>
                   {monthlyMatches.map((m) => {
-                    const d = new Date(m.data);
+                    const dataExib = m.data_text;
+                    const dataPart = dataExib ? dataExib.split(' ')[0] || '—' : (m.data ? new Date(m.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '—');
+                    const horaPart = dataExib ? (dataExib.split(' ')[1] || '—') : (m.data ? new Date(m.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—');
                     return (
                       <tr key={m.id} className="border-b border-neutral-800 hover:bg-neutral-800/50">
                         <td className="py-3 px-3">
@@ -474,10 +511,10 @@ export default function HomePage() {
                           </span>
                         </td>
                         <td className="py-3 px-3 text-neutral-200">
-                          {d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                          {dataPart}
                         </td>
                         <td className="py-3 px-3 text-neutral-200">
-                          {d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          {horaPart}
                         </td>
                         <td className="py-3 px-3 text-neutral-100">{m.adversario}</td>
                         <td className="py-3 px-3 text-neutral-400">{m.local || '—'}</td>

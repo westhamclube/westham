@@ -102,6 +102,7 @@ export default function DashboardPage() {
             data.map((m: any) => ({
               id: m.id,
               data: m.data,
+              data_text: m.data_text,
               adversario: m.adversario,
               local: m.local,
               resultado: m.resultado,
@@ -329,20 +330,13 @@ export default function DashboardPage() {
                       ) : (
                         <div className="space-y-3">
                           {upcomingMatches.map((m) => {
-                            const dataFormatada = m.data
-                              ? new Date(m.data).toLocaleString('pt-BR', {
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })
-                              : '';
+                            const dataFormatada = m.data_text || (m.data ? new Date(m.data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '');
                             const modalidadeLabel =
                               m.modalidade === 'futsal'
-                                ? 'Futsal'
+                                ? 'FUTSAL'
                                 : m.modalidade === 'fut7'
                                 ? 'FUT7'
-                                : 'Campo';
+                                : 'FUT11';
                             return (
                               <Card key={m.id} className="flex items-center justify-between p-4">
                                 <div>

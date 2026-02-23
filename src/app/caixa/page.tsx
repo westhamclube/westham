@@ -232,7 +232,7 @@ export default function CaixaPage() {
           </Card>
 
           {/* Filtros */}
-          <Card className="mb-6 shadow-xl">
+          <Card className="mb-6 shadow-xl bg-white border border-gray-200">
             <h2 className="text-xl font-bold mb-4 text-gray-800">Filtros</h2>
             <div className="flex flex-wrap gap-4 items-end">
               <div>
@@ -299,7 +299,7 @@ export default function CaixaPage() {
           </div>
 
           {/* Formulário */}
-          <Card className="mb-6 shadow-xl">
+          <Card className="mb-6 shadow-xl bg-white border border-gray-200">
             <h2 className="text-xl font-bold mb-4 text-gray-800">Nova Movimentação</h2>
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
@@ -360,7 +360,7 @@ export default function CaixaPage() {
           </Card>
 
           {/* Lista */}
-          <Card className="shadow-xl">
+          <Card className="shadow-xl bg-white border border-gray-200">
             <h2 className="text-xl font-bold mb-4 text-gray-800">Movimentações</h2>
             {loading ? (
               <p className="text-gray-600 py-8">Carregando...</p>
