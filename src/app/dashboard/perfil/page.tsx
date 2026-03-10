@@ -59,10 +59,11 @@ export default function PerfilPage() {
     const load = async () => {
       setLoadingPlayerStats(true);
       try {
+        const searchName = [user.nome, user.sobrenome].filter(Boolean).join(' ').trim() || user.nome || '';
         const { data, error } = await supabase
           .from('players')
-          .select('id, nome, numero, posicao, idade, gols, assists, nivel')
-          .eq('nome', user.nome)
+          .select('id, nome, numero, posicao, idade, gols, assists, nivel, gols_campo, gols_fut7, gols_futsal, assistencias_campo, assistencias_fut7, assistencias_futsal, foto_url, cartoes_amarelos, cartoes_vermelhos')
+          .eq('nome', searchName)
           .maybeSingle();
 
         if (!error && data) {
@@ -273,54 +274,67 @@ export default function PerfilPage() {
           </Card>
         )}
 
-        {/* Estatísticas do jogador */}
+        {/* Carteirinha de jogador */}
         {user.role === 'jogador' && (
-          <Card className="p-6 bg-white border border-neutral-200">
-            <h2 className="font-bold text-lg text-neutral-900 mb-4">Painel do jogador</h2>
+          <Card className="p-6 border-2 border-sky-500/50 bg-gradient-to-br from-sky-50 to-neutral-50">
+            <h2 className="font-bold text-lg text-neutral-900 mb-4">Carteirinha de jogador</h2>
             {loadingPlayerStats ? (
-              <p className="text-sm text-neutral-500">Carregando estatísticas...</p>
+              <p className="text-sm text-neutral-500">Carregando carteirinha...</p>
             ) : !playerStats ? (
               <p className="text-sm text-neutral-500">
                 Ainda não encontramos um registro de jogador vinculado ao seu nome.
                 Peça para o admin configurar suas estatísticas na área de elenco.
               </p>
             ) : (
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-wide text-neutral-500">Nome</p>
-                  <p className="font-semibold text-neutral-900">{playerStats.nome}</p>
+              <div className="flex flex-col sm:flex-row items-center gap-6 p-4 bg-white rounded-xl border border-neutral-200">
+                <div className="w-20 h-20 rounded-full overflow-hidden bg-neutral-200 flex items-center justify-center flex-shrink-0 aspect-square">
+                  {(playerStats as any).foto_url ? (
+                    <img src={(playerStats as any).foto_url} alt="Foto" className="w-full h-full object-cover object-center" />
+                  ) : user.avatar_url ? (
+                    <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover object-center" />
+                  ) : (
+                    <span className="text-3xl font-bold text-neutral-400">
+                      {(playerStats.nome || user.nome || user.email)[0]?.toUpperCase()}
+                    </span>
+                  )}
                 </div>
-                <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-wide text-neutral-500">Número</p>
-                  <p className="font-semibold text-neutral-900">{playerStats.numero}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-wide text-neutral-500">Posição</p>
-                  <p className="font-semibold text-neutral-900">{playerStats.posicao}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-wide text-neutral-500">Idade</p>
-                  <p className="font-semibold text-neutral-900">
-                    {playerStats.idade ? `${playerStats.idade} anos` : '—'}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-wide text-neutral-500">Gols marcados</p>
-                  <p className="font-semibold text-neutral-900">
-                    {Number(playerStats.gols) || 0}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-wide text-neutral-500">Assistências</p>
-                  <p className="font-semibold text-neutral-900">
-                    {Number(playerStats.assists) || 0}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs uppercase tracking-wide text-neutral-500">Nível</p>
-                  <p className="font-semibold text-neutral-900">
-                    {playerStats.nivel ? `${playerStats.nivel}/10` : '—'}
-                  </p>
+                <div className="text-center sm:text-left flex-1 space-y-2">
+                  <p className="font-bold text-neutral-900">{playerStats.nome}</p>
+                  <p className="text-sm text-neutral-600">#{playerStats.numero} · {playerStats.posicao}</p>
+                  {playerStats.idade && <p className="text-sm text-neutral-600">{playerStats.idade} anos</p>}
+                  <div className="flex flex-wrap gap-2 mt-2 text-xs">
+                    <span className="inline-block px-3 py-1 rounded-full bg-sky-500/20 text-sky-700 font-semibold">
+                      Carteira de Jogador
+                    </span>
+                    <span className="inline-block px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-700 font-semibold">
+                      Status: Ativo
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 pt-3 border-t border-neutral-200">
+                    <div>
+                      <p className="text-xs text-neutral-500">Gols</p>
+                      <p className="font-bold text-orange-600">
+                        {Number(playerStats.gols) || [(playerStats as any).gols_campo, (playerStats as any).gols_fut7, (playerStats as any).gols_futsal].reduce((acc, v) => acc + (Number(v) || 0), 0) || 0}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-neutral-500">Assist.</p>
+                      <p className="font-bold text-orange-600">
+                        {Number((playerStats as any).assists) || ([(playerStats as any).assistencias_campo, (playerStats as any).assistencias_fut7, (playerStats as any).assistencias_futsal].map((v) => Number(v) || 0).reduce((a, b) => a + b, 0))}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-neutral-500">CA</p>
+                      <p className="font-semibold text-neutral-700">{(playerStats as any).cartoes_amarelos ?? 0}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-neutral-500">CV</p>
+                      <p className="font-semibold text-neutral-700">{(playerStats as any).cartoes_vermelhos ?? 0}</p>
+                    </div>
+                  </div>
+                  {playerStats.nivel && (
+                    <p className="text-sm text-neutral-500 mt-1">Nível: {playerStats.nivel}/10</p>
+                  )}
                 </div>
               </div>
             )}

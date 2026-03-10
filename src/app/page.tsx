@@ -27,6 +27,24 @@ export default function HomePage() {
   const [loadingAniversariantes, setLoadingAniversariantes] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any | null>(null);
 
+  const [heroTitle, setHeroTitle] = useState('A casa oficial do Westham na web');
+  const [heroSlogan, setHeroSlogan] = useState('FUT11, FUT 7 e FUTSAL, área do sócio e loja oficial em um só lugar. Notícias, cronograma de jogos e projetos do clube.');
+  const [heroBgUrl, setHeroBgUrl] = useState<string | null>(null);
+  const [heroLogoUrl, setHeroLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.from('site_settings').select('hero_title, hero_slogan, hero_bg_image_url, hero_logo_url').eq('id', 1).single();
+      if (data) {
+        if (data.hero_title != null && data.hero_title !== '') setHeroTitle(data.hero_title);
+        if (data.hero_slogan != null && data.hero_slogan !== '') setHeroSlogan(data.hero_slogan);
+        if (data.hero_bg_image_url) setHeroBgUrl(data.hero_bg_image_url);
+        if (data.hero_logo_url) setHeroLogoUrl(data.hero_logo_url);
+      }
+    };
+    load();
+  }, []);
+
   useEffect(() => {
     const loadNews = async () => {
       const { data, error } = await supabase
@@ -225,54 +243,73 @@ export default function HomePage() {
           </>
         )}
 
-        {/* Hero Section */}
-        <section className="relative bg-gradient-to-r from-black via-neutral-900 to-orange-600 text-white py-20 px-6 overflow-hidden">
-          <div className="absolute inset-0 opacity-10">
-            <svg className="w-full h-full" viewBox="0 0 1200 600">
-              <circle cx="200" cy="100" r="80" fill="orange" />
-              <circle cx="1000" cy="500" r="100" fill="orange" />
-              <path
-                d="M0 300 Q300 200 600 300 T1200 300"
-                stroke="orange"
-                strokeWidth="2"
-                fill="none"
-              />
-            </svg>
-          </div>
+        {/* Hero Section — fundo editável pelo admin (só esta seção); título, slogan e logo também */}
+        <section
+          className="relative text-white py-20 px-6 overflow-hidden"
+          style={
+            heroBgUrl
+              ? { backgroundImage: `url(${heroBgUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+              : { background: 'linear-gradient(to right, #000, #171717, #ea580c)' }
+          }
+        >
+          {!heroBgUrl && (
+            <div className="absolute inset-0 opacity-10">
+              <svg className="w-full h-full" viewBox="0 0 1200 600">
+                <circle cx="200" cy="100" r="80" fill="orange" />
+                <circle cx="1000" cy="500" r="100" fill="orange" />
+                <path
+                  d="M0 300 Q300 200 600 300 T1200 300"
+                  stroke="orange"
+                  strokeWidth="2"
+                  fill="none"
+                />
+              </svg>
+            </div>
+          )}
+          {heroBgUrl && <div className="absolute inset-0 bg-black/50" aria-hidden />}
 
           <div className="relative max-w-7xl mx-auto flex flex-col items-center text-center gap-10">
             <div className="flex flex-col md:flex-row items-center gap-10">
-              <div className="relative w-32 h-32 md:w-40 md:h-40 rounded-2xl bg-black/70 border-2 border-orange-400 overflow-hidden shadow-2xl">
-                <Image
-                  src="/logoswest/ESCUDO PNG.png"
-                  alt="Escudo oficial Sport Club Westham"
-                  fill
-                  className="object-contain"
-                  sizes="208px"
-                  priority
-                />
+              <div className="relative w-32 h-32 md:w-40 md:h-40 rounded-2xl bg-black/70 border-2 border-orange-400 overflow-hidden shadow-2xl flex-shrink-0">
+                {heroLogoUrl ? (
+                  <img
+                    src={heroLogoUrl}
+                    alt="Escudo oficial Sport Club Westham"
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <Image
+                    src="/logoswest/ESCUDO PNG.png"
+                    alt="Escudo oficial Sport Club Westham"
+                    fill
+                    className="object-contain"
+                    sizes="208px"
+                    priority
+                  />
+                )}
               </div>
               <div className="text-left max-w-xl">
                 <p className="uppercase tracking-[0.35em] text-xs text-orange-300 mb-2">
                   Sport Club Westham
                 </p>
                 <h1 className="text-4xl md:text-5xl font-extrabold mb-4 drop-shadow-lg">
-                  A casa oficial do Westham na web
+                  {heroTitle}
                 </h1>
                 <p className="text-lg md:text-xl mb-6 text-orange-100/90">
-                  FUT11, FUT 7 e FUTSAL, área do sócio e loja oficial em um só lugar. Notícias,
-                  cronograma de jogos e projetos do clube.
+                  {heroSlogan}
                 </p>
 
-                <div className="space-y-5">
-                  {/* Links secundários */}
-                  <button
-                    type="button"
-                    onClick={loadAniversariantes}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-orange-500/15 border border-orange-500/40 text-orange-200 hover:bg-orange-500/25 hover:border-orange-400/60 text-sm font-medium transition"
-                  >
-                    🎂 Ver aniversariantes do dia e do mês
-                  </button>
+                <div className="flex flex-col gap-5">
+                  {/* Botão aniversariantes com espaço abaixo para não grudar nos outros */}
+                  <div className="mb-5">
+                    <button
+                      type="button"
+                      onClick={loadAniversariantes}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-orange-500/15 border border-orange-500/40 text-orange-200 hover:bg-orange-500/25 hover:border-orange-400/60 text-sm font-medium transition"
+                    >
+                      🎂 Ver aniversariantes do dia e do mês
+                    </button>
+                  </div>
 
                   {!user && (
                     <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
@@ -320,13 +357,26 @@ export default function HomePage() {
                       </Button>
                     </Link>
                     {user.role === 'sócio' && (
-                      <Button
-                        size="lg"
-                        variant="secondary"
-                        className="border border-emerald-400 text-emerald-200 hover:bg-emerald-500/10"
-                      >
-                        ⭐ Carteirinha de Sócio Ativo
-                      </Button>
+                      <Link href="/dashboard/perfil">
+                        <Button
+                          size="lg"
+                          variant="secondary"
+                          className="border border-emerald-400 text-emerald-200 hover:bg-emerald-500/10"
+                        >
+                          ⭐ Carteirinha de Sócio Ativo
+                        </Button>
+                      </Link>
+                    )}
+                    {user.role === 'jogador' && (
+                      <Link href="/dashboard/perfil">
+                        <Button
+                          size="lg"
+                          variant="secondary"
+                          className="border border-sky-400 text-sky-200 hover:bg-sky-500/10"
+                        >
+                          ⚽ Carteirinha de Jogador
+                        </Button>
+                      </Link>
                     )}
                     {user.role === 'admin' && (
                       <Link href="/admin">

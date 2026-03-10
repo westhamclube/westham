@@ -63,7 +63,7 @@ export default function PlayerProfilePage() {
 
   if (!user) return null;
 
-  const canViewDetails = user.role === 'sócio' || user.role === 'admin';
+  const canViewDetails = user.role === 'sócio' || user.role === 'jogador' || user.role === 'admin';
 
   return (
     <main className="bg-neutral-950 min-h-screen py-10">

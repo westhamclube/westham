@@ -22,6 +22,8 @@ import {
   PRODUCTS_BUCKET,
   PROJECTS_BUCKET,
   HISTORY_PHOTOS_BUCKET,
+  SITE_ASSETS_BUCKET,
+  uploadSiteAsset,
   isOurStorageUrl,
 } from '@/lib/storage';
 import { ImageUpload } from '@/components/ImageUpload';
@@ -99,7 +101,7 @@ export default function AdminPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'news' | 'players' | 'ranks' | 'shop' | 'projects' | 'suporte' | 'historia' | 'jogos'>('ranks');
+  const [activeTab, setActiveTab] = useState<'news' | 'players' | 'ranks' | 'shop' | 'projects' | 'suporte' | 'historia' | 'jogos' | 'home'>('ranks');
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   
@@ -205,7 +207,16 @@ export default function AdminPage() {
   const [matchGolsAdversario, setMatchGolsAdversario] = useState<number | ''>('');
   const [matchPlayerStats, setMatchPlayerStats] = useState<Record<string, { gols: number; assistencias: number }>>({});
 
-  const [modalidadeStatsList, setModalidadeStatsList] = useState<Record<string, { ultimo_resultado: string; gols_total: number; vitorias: number; derrotas: number }>>({});
+  const [siteHeroTitle, setSiteHeroTitle] = useState('');
+  const [siteHeroSlogan, setSiteHeroSlogan] = useState('');
+  const [siteHeroBgUrl, setSiteHeroBgUrl] = useState<string | null>(null);
+  const [siteHeroLogoUrl, setSiteHeroLogoUrl] = useState<string | null>(null);
+  const [siteSettingsLoading, setSiteSettingsLoading] = useState(false);
+  const [siteSettingsSaving, setSiteSettingsSaving] = useState(false);
+  const siteHeroBgInputRef = useRef<HTMLInputElement>(null);
+  const siteHeroLogoInputRef = useRef<HTMLInputElement>(null);
+  const [siteHeroBgFile, setSiteHeroBgFile] = useState<File | null>(null);
+  const [siteHeroLogoFile, setSiteHeroLogoFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (!loading && (!user || user.role !== 'admin')) {
@@ -348,23 +359,24 @@ export default function AdminPage() {
   useEffect(() => {
     if (activeTab !== 'jogos' || !user) return;
     const load = async () => {
-      const [matchesRes, statsRes] = await Promise.all([
-        supabase.from('matches').select('*').order('data', { ascending: true }),
-        supabase.from('modalidade_stats').select('*'),
-      ]);
+      const matchesRes = await supabase.from('matches').select('*').order('data', { ascending: true });
       if (!matchesRes.error && matchesRes.data) setMatchesList(matchesRes.data);
-      if (!statsRes.error && statsRes.data) {
-        const map: Record<string, any> = {};
-        statsRes.data.forEach((s: any) => {
-          map[s.modalidade] = {
-            ultimo_resultado: s.ultimo_resultado || '',
-            gols_total: s.gols_total ?? 0,
-            vitorias: s.vitorias ?? 0,
-            derrotas: s.derrotas ?? 0,
-          };
-        });
-        setModalidadeStatsList(map);
+    };
+    load();
+  }, [activeTab, user]);
+
+  useEffect(() => {
+    if (activeTab !== 'home' || !user) return;
+    const load = async () => {
+      setSiteSettingsLoading(true);
+      const { data, error } = await supabase.from('site_settings').select('hero_title, hero_slogan, hero_bg_image_url, hero_logo_url').eq('id', 1).single();
+      if (!error && data) {
+        setSiteHeroTitle(data.hero_title ?? '');
+        setSiteHeroSlogan(data.hero_slogan ?? '');
+        setSiteHeroBgUrl(data.hero_bg_image_url ?? null);
+        setSiteHeroLogoUrl(data.hero_logo_url ?? null);
       }
+      setSiteSettingsLoading(false);
     };
     load();
   }, [activeTab, user]);
@@ -1028,7 +1040,17 @@ export default function AdminPage() {
 
   const handleSaveMatchPlayerStats = async () => {
     if (!editingMatch) return;
-    const mod = matchModalidade;
+    const mod = matchModalidade as 'campo' | 'fut7' | 'futsal';
+    const golsCol = mod === 'campo' ? 'gols_campo' : mod === 'fut7' ? 'gols_fut7' : 'gols_futsal';
+    const assistCol = mod === 'campo' ? 'assistencias_campo' : mod === 'fut7' ? 'assistencias_fut7' : 'assistencias_futsal';
+
+    // Buscar valores antigos da partida antes de apagar (para calcular o delta)
+    const { data: oldStats } = await supabase.from('match_player_stats').select('player_id, gols, assistencias').eq('match_id', editingMatch);
+    const oldMap: Record<string, { gols: number; assistencias: number }> = {};
+    (oldStats || []).forEach((r: any) => {
+      oldMap[r.player_id] = { gols: Number(r.gols) || 0, assistencias: Number(r.assistencias) || 0 };
+    });
+
     const jogam = playersList.filter((p: any) => mod === 'campo' ? p.joga_campo !== false : mod === 'fut7' ? !!p.joga_fut7 : !!p.joga_futsal);
     await supabase.from('match_player_stats').delete().eq('match_id', editingMatch);
     const rows = jogam
@@ -1036,16 +1058,50 @@ export default function AdminPage() {
       .map((p: any) => ({
         match_id: editingMatch,
         player_id: p.id,
-        gols: matchPlayerStats[p.id]?.gols ?? 0,
-        assistencias: matchPlayerStats[p.id]?.assistencias ?? 0,
+        gols: Number(matchPlayerStats[p.id]?.gols) || 0,
+        assistencias: Number(matchPlayerStats[p.id]?.assistencias) || 0,
       }));
     if (rows.length > 0) {
       const { error } = await supabase.from('match_player_stats').insert(rows);
-      if (error) showFeedback('error', error.message);
-      else showFeedback('success', 'Estatísticas da partida salvas!');
-    } else {
-      showFeedback('success', 'Nenhum gol/assistência para salvar.');
+      if (error) {
+        showFeedback('error', error.message);
+        return;
+      }
     }
+
+    // Somar/atualizar totais do jogador na modalidade (delta = novo - antigo)
+    const allPlayerIds = new Set<string>([...(oldStats || []).map((r: any) => r.player_id), ...rows.map((r) => r.player_id)]);
+    for (const playerId of allPlayerIds) {
+      const old = oldMap[playerId] || { gols: 0, assistencias: 0 };
+      const newRow = rows.find((r) => r.player_id === playerId);
+      const novo = newRow ? { gols: newRow.gols, assistencias: newRow.assistencias } : { gols: 0, assistencias: 0 };
+      const deltaGols = novo.gols - old.gols;
+      const deltaAssist = novo.assistencias - old.assistencias;
+      if (deltaGols === 0 && deltaAssist === 0) continue;
+
+      const { data: player } = await supabase.from('players').select(`id, ${golsCol}, ${assistCol}`).eq('id', playerId).single();
+      if (!player) continue;
+      const currentGols = Number((player as any)[golsCol]) || 0;
+      const currentAssist = Number((player as any)[assistCol]) || 0;
+      const newGols = Math.max(0, currentGols + deltaGols);
+      const newAssist = Math.max(0, currentAssist + deltaAssist);
+      await supabase.from('players').update({ [golsCol]: newGols, [assistCol]: newAssist }).eq('id', playerId);
+    }
+
+    // Atualizar lista local de jogadores para refletir os novos totais
+    const toRefresh = Array.from(allPlayerIds);
+    if (toRefresh.length > 0) {
+      const { data: updated } = await supabase.from('players').select('id, gols_campo, gols_fut7, gols_futsal, assistencias_campo, assistencias_fut7, assistencias_futsal').in('id', toRefresh);
+      if (updated?.length) {
+        setPlayersList((prev) =>
+          prev.map((p) => {
+            const u = updated.find((x: any) => x.id === p.id);
+            return u ? { ...p, ...u } : p;
+          })
+        );
+      }
+    }
+    showFeedback('success', rows.length > 0 ? 'Estatísticas da partida salvas! Gols e assistências foram somados aos totais dos jogadores.' : 'Estatísticas da partida salvas. Totais dos jogadores atualizados.');
   };
 
   const setMatchPlayerStat = (playerId: string, field: 'gols' | 'assistencias', value: number) => {
@@ -1121,6 +1177,7 @@ export default function AdminPage() {
               { id: 'projects', label: 'Projetos', icon: '📁' },
               { id: 'jogos', label: 'Próximos Jogos', icon: '📅' },
               { id: 'historia', label: 'História', icon: '📜' },
+              { id: 'home', label: 'Página inicial', icon: '🏠' },
               { id: 'caixa', label: 'Caixa', icon: '💰', href: '/caixa' },
             ].map((tab) =>
               'href' in tab && tab.href ? (
@@ -1178,10 +1235,12 @@ export default function AdminPage() {
                             user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
                             user.role === 'diretor' ? 'bg-amber-100 text-amber-800' :
                             user.role === 'sócio' ? 'bg-orange-100 text-orange-800' :
+                            user.role === 'jogador' ? 'bg-sky-100 text-sky-800' :
                             'bg-blue-100 text-blue-800'
                           }`}>
                             {user.role === 'usuário' ? '👤 Usuário' :
                              user.role === 'sócio' ? '⭐ Sócio' :
+                             user.role === 'jogador' ? '⚽ Jogador' :
                              user.role === 'diretor' ? '📋 Diretor' :
                              '👑 Admin'}
                           </span>
@@ -1464,83 +1523,50 @@ export default function AdminPage() {
           {/* Próximos Jogos */}
           {activeTab === 'jogos' && (
             <div className="space-y-6">
-              <Card className="shadow-2xl">
-                <h2 className="text-2xl font-bold mb-4 text-gray-800">📊 Estatísticas por categoria</h2>
-                <p className="text-gray-600 mb-4">Preencha manualmente os dados que aparecem na tela de jogos de cada modalidade.</p>
-                <div className="grid md:grid-cols-3 gap-6">
-                  {(['campo', 'fut7', 'futsal'] as const).map((mod) => {
-                    const s = modalidadeStatsList[mod] || { ultimo_resultado: '', gols_total: 0, vitorias: 0, derrotas: 0 };
-                    const label = mod === 'campo' ? 'FUT11' : mod === 'fut7' ? 'FUT 7' : 'FUTSAL';
-                    return (
-                      <div key={mod} className="p-4 bg-gray-50 rounded-lg border-2 border-gray-200">
-                        <h3 className="font-bold text-gray-800 mb-3">{label}</h3>
-                        <div className="space-y-2">
-                          <Input
-                            label="Último jogo (ex: Westham 3 x 1 Adversário)"
-                            value={s.ultimo_resultado}
-                            onChange={(e) => setModalidadeStatsList((prev) => ({
-                              ...prev,
-                              [mod]: { ...s, ultimo_resultado: e.target.value },
-                            }))}
-                          />
-                          <Input label="Gols total" type="number" value={String(s.gols_total)} onChange={(e) => setModalidadeStatsList((prev) => ({ ...prev, [mod]: { ...s, gols_total: parseInt(e.target.value) || 0 } }))} />
-                          <Input label="Vitórias" type="number" value={String(s.vitorias)} onChange={(e) => setModalidadeStatsList((prev) => ({ ...prev, [mod]: { ...s, vitorias: parseInt(e.target.value) || 0 } }))} />
-                          <Input label="Derrotas" type="number" value={String(s.derrotas)} onChange={(e) => setModalidadeStatsList((prev) => ({ ...prev, [mod]: { ...s, derrotas: parseInt(e.target.value) || 0 } }))} />
-                          <Button
-                            size="sm"
-                            onClick={async () => {
-                              const { error } = await supabase.from('modalidade_stats').upsert({
-                                modalidade: mod,
-                                ultimo_resultado: s.ultimo_resultado || null,
-                                gols_total: s.gols_total,
-                                vitorias: s.vitorias,
-                                derrotas: s.derrotas,
-                                updated_at: new Date().toISOString(),
-                              }, { onConflict: 'modalidade' });
-                              if (error) showFeedback('error', error.message);
-                              else showFeedback('success', `Estatísticas de ${label} salvas!`);
-                            }}
-                          >
-                            Salvar {label}
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-              <Card className="shadow-2xl bg-white border border-gray-200">
-                <h2 className="text-2xl font-bold mb-4 text-gray-800">📅 Cadastrar Próxima Partida</h2>
-                <p className="text-gray-600 mb-4">As partidas aparecem na tela inicial e nas páginas FUT11, FUT 7 e FUTSAL.</p>
+              <Card className="shadow-2xl bg-neutral-800 border border-neutral-600">
+                <h2 className="text-2xl font-bold mb-4 text-neutral-100">📅 Cadastrar Próxima Partida</h2>
+                <p className="text-neutral-300 mb-4">As partidas aparecem na tela inicial e nas páginas FUT11, FUT 7 e FUTSAL.</p>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Data e Hora</label>
+                    <label className="block text-sm font-semibold text-neutral-200 mb-1">Data e Hora</label>
                     <input
                       type="datetime-local"
                       value={matchData}
                       onChange={(e) => setMatchData(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg"
+                      className="w-full px-4 py-3 border-2 border-neutral-500 rounded-lg bg-neutral-700 text-neutral-100 placeholder:text-neutral-400 focus:border-orange-500 focus:outline-none"
                     />
                   </div>
-                  <Input label="Adversário" value={matchAdversario} onChange={(e) => setMatchAdversario(e.target.value)} placeholder="Ex: Time X" />
-                  <Input label="Local" value={matchLocal} onChange={(e) => setMatchLocal(e.target.value)} placeholder="Ex: Estádio Y" />
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Modalidade</label>
-                    <select value={matchModalidade} onChange={(e) => setMatchModalidade(e.target.value as any)} className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg">
+                    <label className="block text-sm font-semibold text-neutral-200 mb-1">Adversário</label>
+                    <input value={matchAdversario} onChange={(e) => setMatchAdversario(e.target.value)} placeholder="Ex: Time X" className="w-full px-4 py-3 border-2 border-neutral-500 rounded-lg bg-neutral-700 text-neutral-100 placeholder:text-neutral-400 focus:border-orange-500 focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-neutral-200 mb-1">Local</label>
+                    <input value={matchLocal} onChange={(e) => setMatchLocal(e.target.value)} placeholder="Ex: Estádio Y" className="w-full px-4 py-3 border-2 border-neutral-500 rounded-lg bg-neutral-700 text-neutral-100 placeholder:text-neutral-400 focus:border-orange-500 focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-neutral-200 mb-1">Modalidade</label>
+                    <select value={matchModalidade} onChange={(e) => setMatchModalidade(e.target.value as any)} className="w-full px-4 py-3 border-2 border-neutral-500 rounded-lg bg-neutral-700 text-neutral-100 focus:border-orange-500 focus:outline-none">
                       <option value="campo">FUT11</option>
                       <option value="fut7">FUT 7</option>
                       <option value="futsal">FUTSAL</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Tipo</label>
-                    <select value={matchTipo} onChange={(e) => setMatchTipo(e.target.value as any)} className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg">
+                    <label className="block text-sm font-semibold text-neutral-200 mb-1">Tipo</label>
+                    <select value={matchTipo} onChange={(e) => setMatchTipo(e.target.value as any)} className="w-full px-4 py-3 border-2 border-neutral-500 rounded-lg bg-neutral-700 text-neutral-100 focus:border-orange-500 focus:outline-none">
                       <option value="amistoso">Amistoso</option>
                       <option value="campeonato">Campeonato</option>
                     </select>
                   </div>
-                  <Input label="Placar Westham" type="number" min={0} value={matchGolsWestham === '' ? '' : String(matchGolsWestham)} onChange={(e) => setMatchGolsWestham(e.target.value === '' ? '' : parseInt(e.target.value) || 0)} placeholder="—" />
-                  <Input label="Placar adversário" type="number" min={0} value={matchGolsAdversario === '' ? '' : String(matchGolsAdversario)} onChange={(e) => setMatchGolsAdversario(e.target.value === '' ? '' : parseInt(e.target.value) || 0)} placeholder="—" />
+                  <div>
+                    <label className="block text-sm font-semibold text-neutral-200 mb-1">Placar Westham</label>
+                    <input type="number" min={0} className="w-full px-4 py-3 border-2 border-neutral-500 rounded-lg bg-neutral-700 text-neutral-100 placeholder:text-neutral-400 focus:border-orange-500 focus:outline-none" value={matchGolsWestham === '' ? '' : String(matchGolsWestham)} onChange={(e) => setMatchGolsWestham(e.target.value === '' ? '' : parseInt(e.target.value, 10) || 0)} placeholder="—" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-neutral-200 mb-1">Placar adversário</label>
+                    <input type="number" min={0} className="w-full px-4 py-3 border-2 border-neutral-500 rounded-lg bg-neutral-700 text-neutral-100 placeholder:text-neutral-400 focus:border-orange-500 focus:outline-none" value={matchGolsAdversario === '' ? '' : String(matchGolsAdversario)} onChange={(e) => setMatchGolsAdversario(e.target.value === '' ? '' : parseInt(e.target.value, 10) || 0)} placeholder="—" />
+                  </div>
                 </div>
                 <div className="flex gap-3 mt-4">
                   <Button size="lg" onClick={handleAddMatch}>{editingMatch ? '💾 Salvar' : '➕ Adicionar partida'}</Button>
@@ -1549,29 +1575,29 @@ export default function AdminPage() {
                   )}
                 </div>
                 {editingMatch && (
-                  <div className="mt-6 pt-6 border-t border-gray-200">
-                    <h3 className="font-bold text-gray-800 mb-3">Gols e assistências na partida</h3>
-                    <p className="text-sm text-gray-600 mb-3">Preencha para aparecer no detalhe do jogo anterior (página Jogos por modalidade).</p>
+                  <div className="mt-6 pt-6 border-t border-neutral-600">
+                    <h3 className="font-bold text-neutral-100 mb-3">Gols e assistências na partida</h3>
+                    <p className="text-sm text-neutral-300 mb-3">Preencha para aparecer no detalhe do jogo. Ao salvar, os gols e assistências são somados automaticamente ao total do jogador nesta modalidade.</p>
                     <div className="overflow-x-auto max-h-64 overflow-y-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="border-b border-gray-300">
-                            <th className="text-left py-2 px-2 font-semibold text-gray-800">Jogador</th>
-                            <th className="text-left py-2 px-2 font-semibold text-gray-800 w-20">Gols</th>
-                            <th className="text-left py-2 px-2 font-semibold text-gray-800 w-24">Assist.</th>
+                          <tr className="border-b border-neutral-600">
+                            <th className="text-left py-2 px-2 font-semibold text-neutral-200">Jogador</th>
+                            <th className="text-left py-2 px-2 font-semibold text-neutral-200 w-20">Gols</th>
+                            <th className="text-left py-2 px-2 font-semibold text-neutral-200 w-24">Assist.</th>
                           </tr>
                         </thead>
                         <tbody>
                           {playersList
                             .filter((p: any) => matchModalidade === 'campo' ? p.joga_campo !== false : matchModalidade === 'fut7' ? !!p.joga_fut7 : !!p.joga_futsal)
                             .map((p: any) => (
-                              <tr key={p.id} className="border-b border-gray-100">
-                                <td className="py-2 px-2">{p.nome} #{p.numero}</td>
+                              <tr key={p.id} className="border-b border-neutral-700">
+                                <td className="py-2 px-2 text-neutral-100">{p.nome} #{p.numero}</td>
                                 <td className="py-2 px-2">
-                                  <input type="number" min={0} className="w-16 px-2 py-1 border rounded" value={matchPlayerStats[p.id]?.gols ?? 0} onChange={(e) => setMatchPlayerStat(p.id, 'gols', parseInt(e.target.value) || 0)} />
+                                  <input type="number" min={0} className="w-16 px-2 py-1 border border-neutral-500 rounded bg-neutral-700 text-neutral-100 focus:border-orange-500 focus:outline-none" value={matchPlayerStats[p.id]?.gols ?? 0} onChange={(e) => setMatchPlayerStat(p.id, 'gols', parseInt(String(e.target.value), 10) || 0)} />
                                 </td>
                                 <td className="py-2 px-2">
-                                  <input type="number" min={0} className="w-16 px-2 py-1 border rounded" value={matchPlayerStats[p.id]?.assistencias ?? 0} onChange={(e) => setMatchPlayerStat(p.id, 'assistencias', parseInt(e.target.value) || 0)} />
+                                  <input type="number" min={0} className="w-16 px-2 py-1 border border-neutral-500 rounded bg-neutral-700 text-neutral-100 focus:border-orange-500 focus:outline-none" value={matchPlayerStats[p.id]?.assistencias ?? 0} onChange={(e) => setMatchPlayerStat(p.id, 'assistencias', parseInt(String(e.target.value), 10) || 0)} />
                                 </td>
                               </tr>
                             ))}
@@ -1617,6 +1643,125 @@ export default function AdminPage() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
+
+          {/* Página inicial */}
+          {activeTab === 'home' && (
+            <div className="space-y-6">
+              <Card className="shadow-2xl bg-neutral-800 border border-neutral-600">
+                <h2 className="text-2xl font-bold mb-4 text-neutral-100">🏠 Página inicial</h2>
+                <p className="text-neutral-300 mb-6">Título, slogan e imagens da seção hero (acima das últimas notícias). O fundo e o logo dentro do quadrado do Westham podem ser trocados por imagens.</p>
+                {siteSettingsLoading ? (
+                  <p className="text-neutral-400">Carregando...</p>
+                ) : (
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-semibold text-neutral-200 mb-1">Título da página</label>
+                      <input
+                        type="text"
+                        value={siteHeroTitle}
+                        onChange={(e) => setSiteHeroTitle(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-neutral-500 rounded-lg bg-neutral-700 text-neutral-100 placeholder:text-neutral-400 focus:border-orange-500 focus:outline-none"
+                        placeholder="Ex: A casa oficial do Westham na web"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-neutral-200 mb-1">Slogan / descrição</label>
+                      <textarea
+                        value={siteHeroSlogan}
+                        onChange={(e) => setSiteHeroSlogan(e.target.value)}
+                        rows={3}
+                        className="w-full px-4 py-3 border-2 border-neutral-500 rounded-lg bg-neutral-700 text-neutral-100 placeholder:text-neutral-400 focus:border-orange-500 focus:outline-none"
+                        placeholder="FUT11, FUT 7 e FUTSAL, área do sócio e loja oficial..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-neutral-200 mb-1">Imagem de fundo da hero (abaixo do menu)</label>
+                      <p className="text-neutral-400 text-sm mb-2">Substitui o fundo preto com detalhes laranjas. Deixe em branco para manter o padrão.</p>
+                      <input
+                        ref={siteHeroBgInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => setSiteHeroBgFile(e.target.files?.[0] ?? null)}
+                      />
+                      <div className="flex flex-wrap items-center gap-4">
+                        {siteHeroBgUrl && (
+                          <div className="w-32 h-20 rounded-lg overflow-hidden bg-neutral-700 border border-neutral-600">
+                            <img src={siteHeroBgUrl} alt="Fundo atual" className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                        <Button type="button" variant="secondary" onClick={() => siteHeroBgInputRef.current?.click()}>
+                          {siteHeroBgFile ? 'Trocar imagem' : (siteHeroBgUrl ? 'Trocar fundo' : 'Enviar imagem de fundo')}
+                        </Button>
+                        {siteHeroBgFile && <span className="text-neutral-400 text-sm">{siteHeroBgFile.name}</span>}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-neutral-200 mb-1">Imagem dentro do quadrado do Westham</label>
+                      <p className="text-neutral-400 text-sm mb-2">Logo ou foto que aparece dentro do quadrado (o quadrado em si permanece).</p>
+                      <input
+                        ref={siteHeroLogoInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => setSiteHeroLogoFile(e.target.files?.[0] ?? null)}
+                      />
+                      <div className="flex flex-wrap items-center gap-4">
+                        {siteHeroLogoUrl && (
+                          <div className="w-24 h-24 rounded-xl overflow-hidden bg-neutral-700 border-2 border-orange-500/50">
+                            <img src={siteHeroLogoUrl} alt="Logo atual" className="w-full h-full object-contain" />
+                          </div>
+                        )}
+                        <Button type="button" variant="secondary" onClick={() => siteHeroLogoInputRef.current?.click()}>
+                          {siteHeroLogoFile ? 'Trocar imagem' : (siteHeroLogoUrl ? 'Trocar logo' : 'Enviar logo')}
+                        </Button>
+                        {siteHeroLogoFile && <span className="text-neutral-400 text-sm">{siteHeroLogoFile.name}</span>}
+                      </div>
+                    </div>
+                    <Button
+                      size="lg"
+                      disabled={siteSettingsSaving}
+                      onClick={async () => {
+                        setSiteSettingsSaving(true);
+                        try {
+                          let bgUrl = siteHeroBgUrl;
+                          let logoUrl = siteHeroLogoUrl;
+                          if (siteHeroBgFile) {
+                            bgUrl = await uploadSiteAsset(siteHeroBgFile, 'hero-bg', siteHeroBgUrl ?? undefined);
+                            setSiteHeroBgUrl(bgUrl);
+                            setSiteHeroBgFile(null);
+                          }
+                          if (siteHeroLogoFile) {
+                            logoUrl = await uploadSiteAsset(siteHeroLogoFile, 'hero-logo', siteHeroLogoUrl ?? undefined);
+                            setSiteHeroLogoUrl(logoUrl);
+                            setSiteHeroLogoFile(null);
+                          }
+                          const { error } = await supabase
+                            .from('site_settings')
+                            .update({
+                              hero_title: siteHeroTitle || null,
+                              hero_slogan: siteHeroSlogan || null,
+                              hero_bg_image_url: bgUrl || null,
+                              hero_logo_url: logoUrl || null,
+                              updated_at: new Date().toISOString(),
+                            })
+                            .eq('id', 1);
+                          if (error) throw error;
+                          showFeedback('success', 'Página inicial atualizada! As alterações já aparecem no site.');
+                        } catch (e: any) {
+                          showFeedback('error', e?.message || 'Erro ao salvar.');
+                        } finally {
+                          setSiteSettingsSaving(false);
+                        }
+                      }}
+                    >
+                      {siteSettingsSaving ? 'Salvando...' : 'Salvar configurações da página inicial'}
+                    </Button>
                   </div>
                 )}
               </Card>

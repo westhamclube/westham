@@ -30,7 +30,6 @@ export default function JogosModalidadePage() {
   const [matchStats, setMatchStats] = useState<Record<string, { player_id: string; nome: string; numero: number; gols: number; assistencias: number }[]>>({});
   const [news, setNews] = useState<any[]>([]);
   const [players, setPlayers] = useState<any[]>([]);
-  const [modalidadeStats, setModalidadeStats] = useState<{ ultimo_resultado: string | null; gols_total: number; vitorias: number; derrotas: number } | null>(null);
   const [allPlayersMap, setAllPlayersMap] = useState<Record<string, { nome: string; numero: number }>>({});
   const [loading, setLoading] = useState(true);
 
@@ -41,7 +40,6 @@ export default function JogosModalidadePage() {
         { data: pastMatchesData },
         { data: newsData },
         { data: allPlayersData },
-        { data: statsData },
       ] = await Promise.all([
         supabase
           .from('matches')
@@ -76,7 +74,6 @@ export default function JogosModalidadePage() {
           }
           return { data: data || [] };
         })(),
-        supabase.from('modalidade_stats').select('ultimo_resultado, gols_total, vitorias, derrotas').eq('modalidade', modalidade).maybeSingle(),
       ]);
 
       if (matchesData) {
@@ -117,16 +114,6 @@ export default function JogosModalidadePage() {
       const jogaKey = modalidade === 'campo' ? 'joga_campo' : modalidade === 'fut7' ? 'joga_fut7' : 'joga_futsal';
       const filteredPlayers = (allPlayersData || []).filter((p: any) => p[jogaKey] !== false);
       setPlayers(filteredPlayers);
-      if (statsData) {
-        setModalidadeStats({
-          ultimo_resultado: statsData.ultimo_resultado ?? null,
-          gols_total: statsData.gols_total ?? 0,
-          vitorias: statsData.vitorias ?? 0,
-          derrotas: statsData.derrotas ?? 0,
-        });
-      } else {
-        setModalidadeStats({ ultimo_resultado: null, gols_total: 0, vitorias: 0, derrotas: 0 });
-      }
       const map: Record<string, { nome: string; numero: number }> = {};
       (allPlayersData || []).forEach((p: any) => {
         if (p?.id) map[p.id] = { nome: p.nome ?? 'Jogador', numero: p.numero ?? p.numero_camisa ?? 0 };
@@ -168,33 +155,59 @@ export default function JogosModalidadePage() {
             Jogos — {LABEL[slug] || slug}
           </h1>
 
-          {/* Estatísticas da modalidade (admin preenche manualmente) */}
+          {/* Jogadores Destaque: artilheiro (auto), melhor assistências (auto), melhor goleiro (admin) */}
           <section>
-            <h2 className="text-xl font-bold text-neutral-200 mb-4">Estatísticas</h2>
-            <div className="space-y-4">
-              {modalidadeStats?.ultimo_resultado && (
-                <Card className="p-4 bg-neutral-900 border border-neutral-800">
-                  <div className="text-sm text-neutral-400 mb-1">Último jogo</div>
-                  <div className="text-lg font-bold text-orange-400">{modalidadeStats.ultimo_resultado}</div>
-                </Card>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Card className="text-center bg-neutral-900 border border-neutral-800 p-4">
-                  <div className="text-2xl font-bold text-orange-400">{modalidadeStats?.gols_total ?? 0}</div>
-                  <div className="text-sm text-neutral-400">Gols</div>
-                </Card>
-                <Card className="text-center bg-neutral-900 border border-neutral-800 p-4">
-                  <div className="text-2xl font-bold text-orange-400">{modalidadeStats?.vitorias ?? 0}</div>
-                  <div className="text-sm text-neutral-400">Vitórias</div>
-                </Card>
-                <Card className="text-center bg-neutral-900 border border-neutral-800 p-4">
-                  <div className="text-2xl font-bold text-red-400">{modalidadeStats?.derrotas ?? 0}</div>
-                  <div className="text-sm text-neutral-400">Derrotas</div>
-                </Card>
+            <h2 className="text-xl font-bold text-neutral-200 mb-4">Jogadores Destaque</h2>
+            {!loading && !melhorGoleiro && !artilheiro && !melhorAssistente && (
+              <p className="text-neutral-500 text-sm">
+                Nenhum jogador destaque para esta modalidade. O artilheiro e o melhor em assistências são calculados automaticamente; o admin marca o melhor goleiro na edição do jogador.
+              </p>
+            )}
+            {(melhorGoleiro || artilheiro || melhorAssistente) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {artilheiro && (
+                  <Card className="p-4 bg-neutral-900 border border-neutral-800 text-center">
+                    <div className="w-16 h-16 mx-auto mb-2 rounded-full overflow-hidden bg-neutral-800 flex items-center justify-center">
+                      {artilheiro.foto_url ? (
+                        <img src={artilheiro.foto_url} alt={artilheiro.nome} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-2xl text-neutral-500">⚽</span>
+                      )}
+                    </div>
+                    <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1">Artilheiro</p>
+                    <p className="font-bold text-orange-400">{artilheiro.nome}</p>
+                    <p className="text-sm text-neutral-400">#{artilheiro.numero ?? artilheiro.numero_camisa ?? '?'} · {artilheiro[golsKey] ?? 0} gols</p>
+                  </Card>
+                )}
+                {melhorAssistente && (
+                  <Card className="p-4 bg-neutral-900 border border-neutral-800 text-center">
+                    <div className="w-16 h-16 mx-auto mb-2 rounded-full overflow-hidden bg-neutral-800 flex items-center justify-center">
+                      {melhorAssistente.foto_url ? (
+                        <img src={melhorAssistente.foto_url} alt={melhorAssistente.nome} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-2xl text-neutral-500">⚽</span>
+                      )}
+                    </div>
+                    <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1">Melhor em assistências</p>
+                    <p className="font-bold text-orange-400">{melhorAssistente.nome}</p>
+                    <p className="text-sm text-neutral-400">#{melhorAssistente.numero ?? melhorAssistente.numero_camisa ?? '?'} · {melhorAssistente[assistsKey] ?? 0} assistências</p>
+                  </Card>
+                )}
+                {melhorGoleiro && (
+                  <Card className="p-4 bg-neutral-900 border border-neutral-800 text-center">
+                    <div className="w-16 h-16 mx-auto mb-2 rounded-full overflow-hidden bg-neutral-800 flex items-center justify-center">
+                      {melhorGoleiro.foto_url ? (
+                        <img src={melhorGoleiro.foto_url} alt={melhorGoleiro.nome} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-2xl text-neutral-500">🧤</span>
+                      )}
+                    </div>
+                    <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1">Melhor goleiro</p>
+                    <p className="font-bold text-orange-400">{melhorGoleiro.nome}</p>
+                    <p className="text-sm text-neutral-400">#{melhorGoleiro.numero ?? melhorGoleiro.numero_camisa ?? '?'}</p>
+                  </Card>
+                )}
               </div>
-            </div>
-            {!loading && !modalidadeStats?.ultimo_resultado && !modalidadeStats?.gols_total && !modalidadeStats?.vitorias && !modalidadeStats?.derrotas && (
-              <p className="text-neutral-500 text-sm mt-2">O admin pode preencher as estatísticas no painel (Jogos → Estatísticas por categoria).</p>
             )}
           </section>
 
@@ -381,62 +394,6 @@ export default function JogosModalidadePage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
-            )}
-          </section>
-
-          {/* Jogadores Destaque: artilheiro (auto), melhor assistências (auto), melhor goleiro (admin) */}
-          <section>
-            <h2 className="text-xl font-bold text-neutral-200 mb-4">Jogadores Destaque</h2>
-            {!loading && !melhorGoleiro && !artilheiro && !melhorAssistente && (
-              <p className="text-neutral-500 text-sm">
-                Nenhum jogador destaque para esta modalidade. O artilheiro e o melhor em assistências são calculados automaticamente; o admin marca o melhor goleiro na edição do jogador.
-              </p>
-            )}
-            {(melhorGoleiro || artilheiro || melhorAssistente) && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {artilheiro && (
-                  <Card className="p-4 bg-neutral-900 border border-neutral-800 text-center">
-                    <div className="w-16 h-16 mx-auto mb-2 rounded-full overflow-hidden bg-neutral-800 flex items-center justify-center">
-                      {artilheiro.foto_url ? (
-                        <img src={artilheiro.foto_url} alt={artilheiro.nome} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-2xl text-neutral-500">⚽</span>
-                      )}
-                    </div>
-                    <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1">Artilheiro</p>
-                    <p className="font-bold text-orange-400">{artilheiro.nome}</p>
-                    <p className="text-sm text-neutral-400">#{artilheiro.numero ?? artilheiro.numero_camisa ?? '?'} · {artilheiro[golsKey] ?? 0} gols</p>
-                  </Card>
-                )}
-                {melhorAssistente && (
-                  <Card className="p-4 bg-neutral-900 border border-neutral-800 text-center">
-                    <div className="w-16 h-16 mx-auto mb-2 rounded-full overflow-hidden bg-neutral-800 flex items-center justify-center">
-                      {melhorAssistente.foto_url ? (
-                        <img src={melhorAssistente.foto_url} alt={melhorAssistente.nome} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-2xl text-neutral-500">⚽</span>
-                      )}
-                    </div>
-                    <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1">Melhor em assistências</p>
-                    <p className="font-bold text-orange-400">{melhorAssistente.nome}</p>
-                    <p className="text-sm text-neutral-400">#{melhorAssistente.numero ?? melhorAssistente.numero_camisa ?? '?'} · {melhorAssistente[assistsKey] ?? 0} assistências</p>
-                  </Card>
-                )}
-                {melhorGoleiro && (
-                  <Card className="p-4 bg-neutral-900 border border-neutral-800 text-center">
-                    <div className="w-16 h-16 mx-auto mb-2 rounded-full overflow-hidden bg-neutral-800 flex items-center justify-center">
-                      {melhorGoleiro.foto_url ? (
-                        <img src={melhorGoleiro.foto_url} alt={melhorGoleiro.nome} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-2xl text-neutral-500">🧤</span>
-                      )}
-                    </div>
-                    <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-1">Melhor goleiro</p>
-                    <p className="font-bold text-orange-400">{melhorGoleiro.nome}</p>
-                    <p className="text-sm text-neutral-400">#{melhorGoleiro.numero ?? melhorGoleiro.numero_camisa ?? '?'}</p>
-                  </Card>
-                )}
               </div>
             )}
           </section>

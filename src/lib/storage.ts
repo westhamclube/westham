@@ -6,6 +6,7 @@ export const PLAYERS_BUCKET = 'players';
 export const PRODUCTS_BUCKET = 'products';
 export const PROJECTS_BUCKET = 'projects';
 export const HISTORY_PHOTOS_BUCKET = 'history-photos';
+export const SITE_ASSETS_BUCKET = 'site-assets';
 
 /**
  * Utilitários de Storage - deletar arquivo antigo antes de substituir (economiza espaço).
@@ -162,4 +163,18 @@ export async function uploadHistoryPhoto(
   const id = crypto.randomUUID();
   const path = `${historyId}/${id}.${ext}`;
   return uploadToBucket(HISTORY_PHOTOS_BUCKET, path, file, oldUrl);
+}
+
+/**
+ * Imagem da página inicial (fundo hero ou logo do quadrado Westham).
+ * pathPrefix: 'hero-bg' ou 'hero-logo'
+ */
+export async function uploadSiteAsset(
+  file: File,
+  pathPrefix: string,
+  oldUrl?: string | null
+): Promise<string> {
+  const ext = getFileExt(file);
+  const path = `${pathPrefix}.${ext}`;
+  return uploadToBucket(SITE_ASSETS_BUCKET, path, file, oldUrl);
 }
