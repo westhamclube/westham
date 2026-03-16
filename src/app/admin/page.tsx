@@ -2083,42 +2083,9 @@ export default function AdminPage() {
                       className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-600 bg-white text-gray-900"
                     >
                       <option value="">Selecione a posição</option>
-                      {(() => {
-                        const POSICOES_LIMITE: Record<string, number> = { GOL: 1, ZAG: 5, VOL: 4, MEI: 6, ATA: 4, ALA: 99, FIXO: 99, PIVÔ: 99, LATERAL: 99 };
-                        const norm = (p: string) => {
-                          if (!p || !p.trim()) return '';
-                          const u = (p || '').toUpperCase().trim();
-                          if (u.includes('GOL') || u.includes('GOLEIRO')) return 'GOL';
-                          if (u.includes('ZAG') || u.includes('ZAGUEIRO')) return 'ZAG';
-                          if (u.includes('VOL') || u.includes('VOLANTE')) return 'VOL';
-                          if (u.includes('MEI') || u.includes('MEIA')) return 'MEI';
-                          if (u.includes('ATA') || u.includes('ATACANTE') || u === 'AT') return 'ATA';
-                          if (u.includes('ALA')) return 'ALA';
-                          if (u.includes('FIXO')) return 'FIXO';
-                          if (u.includes('PIVÔ') || u.includes('PIVO')) return 'PIVÔ';
-                          if (u.includes('LATERAL')) return 'LATERAL';
-                          return u;
-                        };
-                        const counts: Record<string, number> = {};
-                        const posicoes = ['GOL', 'ZAG', 'VOL', 'MEI', 'ATA', 'ALA', 'FIXO', 'PIVÔ', 'LATERAL'];
-                        posicoes.forEach((pos) => { counts[pos] = 0; });
-                        playersList.forEach((p) => {
-                          const n = norm(p.posicao);
-                          if (n && (p.id !== editingPlayer?.id)) counts[n] = (counts[n] ?? 0) + 1;
-                        });
-                        const currentNorm = norm(playerPosition);
-                        return posicoes.map((pos) => {
-                          const limit = POSICOES_LIMITE[pos] ?? 99;
-                          const atLimit = (counts[pos] ?? 0) >= limit;
-                          const isCurrent = editingPlayer && (currentNorm === pos || norm(editingPlayer.posicao) === pos);
-                          const disabled = atLimit && !isCurrent;
-                          return (
-                            <option key={pos} value={pos} disabled={disabled}>
-                              {pos} {disabled ? `(limite ${limit} atingido)` : ''}
-                            </option>
-                          );
-                        });
-                      })()}
+                      {['GOL', 'ZAG', 'VOL', 'MEI', 'ATA', 'ALA', 'FIXO', 'PIVÔ', 'LATERAL'].map((pos) => (
+                        <option key={pos} value={pos}>{pos}</option>
+                      ))}
                     </select>
                   </div>
                   <Input 
