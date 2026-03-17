@@ -168,6 +168,8 @@ export default function PerfilPage() {
 
   if (!user) return null;
 
+  const hasDiscountEligibility = ['sócio', 'jogador', 'admin', 'diretor', 'moderador'].includes(user.role as any);
+
   return (
     <main className="bg-neutral-50 min-h-screen py-10">
       <div className="max-w-3xl mx-auto px-6 space-y-8">
@@ -204,6 +206,10 @@ export default function PerfilPage() {
                   ? 'Sócio do clube'
                   : user.role === 'jogador'
                   ? 'Jogador do elenco'
+                  : user.role === 'diretor'
+                  ? 'Diretor'
+                  : user.role === 'moderador'
+                  ? 'Moderador'
                   : user.role === 'admin'
                   ? 'Administrador'
                   : 'Membro cadastrado'}
@@ -216,6 +222,10 @@ export default function PerfilPage() {
                     ? 'bg-emerald-500/10 border-emerald-400 text-emerald-700'
                     : user.role === 'jogador'
                     ? 'bg-sky-500/10 border-sky-400 text-sky-700'
+                    : user.role === 'diretor'
+                    ? 'bg-amber-500/10 border-amber-400 text-amber-700'
+                    : user.role === 'moderador'
+                    ? 'bg-indigo-500/10 border-indigo-400 text-indigo-700'
                     : user.role === 'admin'
                     ? 'bg-purple-500/10 border-purple-400 text-purple-700'
                     : 'bg-neutral-100 border-neutral-300 text-neutral-700'
@@ -225,10 +235,19 @@ export default function PerfilPage() {
                   ? 'Selo: Sócio'
                   : user.role === 'jogador'
                   ? 'Selo: Jogador'
+                  : user.role === 'diretor'
+                  ? 'Selo: Diretor'
+                  : user.role === 'moderador'
+                  ? 'Selo: Moderador'
                   : user.role === 'admin'
                   ? 'Selo: Admin'
                   : 'Selo: Membro'}
               </span>
+              {hasDiscountEligibility && user.role !== 'sócio' && (
+                <span className="px-3 py-1 rounded-full text-xs font-semibold border bg-orange-500/10 border-orange-300 text-orange-700">
+                  Benefício: Desconto de Sócio na Loja
+                </span>
+              )}
             </div>
           </div>
         </Card>
@@ -338,6 +357,51 @@ export default function PerfilPage() {
                 </div>
               </div>
             )}
+          </Card>
+        )}
+
+        {/* Carteirinha da diretoria / admin / moderador (mesmo benefício de sócio na loja) */}
+        {(user.role === 'admin' || user.role === 'diretor' || user.role === 'moderador') && (
+          <Card className="p-6 border-2 border-purple-500/30 bg-gradient-to-br from-purple-50 to-neutral-50">
+            <h2 className="font-bold text-lg text-neutral-900 mb-4">Carteirinha do clube</h2>
+            <div className="flex flex-col sm:flex-row items-center gap-6 p-4 bg-white rounded-xl border border-neutral-200">
+              <div className="w-20 h-20 rounded-full overflow-hidden bg-neutral-200 flex items-center justify-center flex-shrink-0 aspect-square">
+                {user.avatar_url ? (
+                  <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover object-center" />
+                ) : (
+                  <span className="text-3xl font-bold text-neutral-400">
+                    {(user.nome || user.email)[0]?.toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <div className="text-center sm:text-left flex-1">
+                <p className="font-bold text-neutral-900">
+                  {user.nome} {user.sobrenome}
+                </p>
+                <p className="text-sm text-neutral-500">{user.email}</p>
+                {user.cpf && <p className="text-sm text-neutral-600 mt-1"><span className="font-semibold">CPF:</span> {user.cpf}</p>}
+                {user.data_nascimento && <p className="text-sm text-neutral-600"><span className="font-semibold">Nascimento:</span> {new Date(user.data_nascimento).toLocaleDateString('pt-BR')}</p>}
+                <div className="mt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs">
+                  <span
+                    className={`inline-block px-3 py-1 rounded-full font-semibold ${
+                      user.role === 'admin'
+                        ? 'bg-purple-500/15 text-purple-800'
+                        : user.role === 'diretor'
+                        ? 'bg-amber-500/15 text-amber-800'
+                        : 'bg-indigo-500/15 text-indigo-800'
+                    }`}
+                  >
+                    {user.role === 'admin' ? 'Carteira de Admin' : user.role === 'diretor' ? 'Carteira de Diretor' : 'Carteira de Moderador'}
+                  </span>
+                  <span className="inline-block px-3 py-1 rounded-full bg-orange-500/10 text-orange-700 font-semibold">
+                    Desconto de Sócio na Loja
+                  </span>
+                  <span className="inline-block px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-700 font-semibold">
+                    Status: Ativo
+                  </span>
+                </div>
+              </div>
+            </div>
           </Card>
         )}
 

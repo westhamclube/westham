@@ -1234,6 +1234,7 @@ export default function AdminPage() {
                           <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
                             user.role === 'admin' ? 'bg-purple-100 text-purple-800' :
                             user.role === 'diretor' ? 'bg-amber-100 text-amber-800' :
+                            user.role === 'moderador' ? 'bg-indigo-100 text-indigo-800' :
                             user.role === 'sócio' ? 'bg-orange-100 text-orange-800' :
                             user.role === 'jogador' ? 'bg-sky-100 text-sky-800' :
                             'bg-blue-100 text-blue-800'
@@ -1242,6 +1243,7 @@ export default function AdminPage() {
                              user.role === 'sócio' ? '⭐ Sócio' :
                              user.role === 'jogador' ? '⚽ Jogador' :
                              user.role === 'diretor' ? '📋 Diretor' :
+                             user.role === 'moderador' ? '🛡️ Moderador' :
                              '👑 Admin'}
                           </span>
                         </td>
@@ -1251,9 +1253,9 @@ export default function AdminPage() {
                             className="px-3 py-2 border-2 border-neutral-300 rounded-lg focus:border-orange-500 bg-white text-neutral-900"
                           >
                             <option value="">-- Selecione --</option>
-                            {['usuário','sócio','jogador','diretor','admin'].filter(r => r !== user.role).map((r) => (
+                            {['usuário','sócio','jogador','moderador','diretor','admin'].filter(r => r !== user.role).map((r) => (
                               <option key={r} value={r}>
-                                {r === 'usuário' ? '👤 Rebaixar para Usuário' : r === 'sócio' ? '⭐ Definir como Sócio' : r === 'jogador' ? '⚽ Definir como Jogador' : r === 'diretor' ? '📋 Definir como Diretor' : '👑 Definir como Admin'}
+                                {r === 'usuário' ? '👤 Rebaixar para Usuário' : r === 'sócio' ? '⭐ Definir como Sócio' : r === 'jogador' ? '⚽ Definir como Jogador' : r === 'moderador' ? '🛡️ Definir como Moderador' : r === 'diretor' ? '📋 Definir como Diretor' : '👑 Definir como Admin'}
                               </option>
                             ))}
                           </select>

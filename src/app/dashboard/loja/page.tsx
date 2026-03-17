@@ -54,8 +54,9 @@ export default function DashboardLojaPage() {
   }, []);
 
   const getFinalPrice = (product: Product) => {
+    const hasDiscountEligibility = ['sócio', 'jogador', 'admin', 'diretor', 'moderador'].includes(user?.role as any);
     const hasSocioDiscount =
-      (user?.role === 'sócio' || user?.role === 'jogador') && product.tem_desconto_socio && product.desconto_socio;
+      hasDiscountEligibility && product.tem_desconto_socio && product.desconto_socio;
     return hasSocioDiscount && product.desconto_socio
       ? product.preco * (1 - product.desconto_socio / 100)
       : product.preco;
@@ -122,7 +123,7 @@ export default function DashboardLojaPage() {
             </h1>
             <p className="text-neutral-300 text-sm md:text-base mt-2">
               Camisetas, acessórios e itens oficiais do Sport Club Westham.
-              {(user?.role === 'sócio' || user?.role === 'jogador') && ' Você tem direito a descontos especiais na loja.'}
+              {(['sócio', 'jogador', 'admin', 'diretor', 'moderador'].includes(user?.role as any)) && ' Você tem direito a descontos especiais na loja.'}
             </p>
           </div>
           {cart.length > 0 && (
@@ -146,8 +147,9 @@ export default function DashboardLojaPage() {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {products.map((product) => {
+            const hasDiscountEligibility = ['sócio', 'jogador', 'admin', 'diretor', 'moderador'].includes(user?.role as any);
             const hasSocioDiscount =
-              (user?.role === 'sócio' || user?.role === 'jogador') && product.tem_desconto_socio && product.desconto_socio;
+              hasDiscountEligibility && product.tem_desconto_socio && product.desconto_socio;
             const finalPrice =
               hasSocioDiscount && product.desconto_socio
                 ? product.preco * (1 - product.desconto_socio / 100)

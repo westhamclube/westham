@@ -140,7 +140,7 @@ export default function DashboardPage() {
     setCart(cart.filter(item => item.id !== productId));
   };
 
-  const hasDiscountEligibility = user?.role === 'sócio' || user?.role === 'jogador';
+  const hasDiscountEligibility = ['sócio', 'jogador', 'admin', 'diretor', 'moderador'].includes(user?.role as any);
 
   const getCartItemFinalPrice = (item: { preco: number; quantidade: number; tem_desconto_socio?: boolean; desconto_socio?: number }) => {
     const hasSocioDiscount = hasDiscountEligibility && item.tem_desconto_socio && item.desconto_socio;

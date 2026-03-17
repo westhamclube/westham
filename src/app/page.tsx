@@ -388,6 +388,17 @@ export default function HomePage() {
                         </Button>
                       </Link>
                     )}
+                    {(user.role === 'admin' || user.role === 'diretor' || user.role === 'moderador') && (
+                      <Link href="/dashboard/perfil">
+                        <Button
+                          size="lg"
+                          variant="secondary"
+                          className="border border-purple-400 text-purple-200 hover:bg-purple-500/10"
+                        >
+                          🪪 Carteirinha do Clube
+                        </Button>
+                      </Link>
+                    )}
                   </div>
                 )}
               </div>

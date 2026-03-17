@@ -21,7 +21,7 @@ export function useCashFlowAccess() {
     }
 
     // Admin sempre tem acesso
-    if (user.role === 'admin') {
+    if (user.role === 'admin' || user.role === 'moderador') {
       setIsModerator(true);
       setLoading(false);
       return;
