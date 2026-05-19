@@ -7,7 +7,26 @@ import { Card } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { supabase } from '@/lib/supabase';
+import { formatDateOnlyPtBrFull } from '@/lib/date-only';
 import { uploadAvatar } from '@/lib/storage';
+
+function totalCartoesAmarelos(p: Record<string, unknown> | null | undefined) {
+  if (!p) return 0;
+  const perMod =
+    (Number(p.cartoes_amarelos_campo) || 0) +
+    (Number(p.cartoes_amarelos_fut7) || 0) +
+    (Number(p.cartoes_amarelos_futsal) || 0);
+  return perMod > 0 ? perMod : Number(p.cartoes_amarelos) || 0;
+}
+
+function totalCartoesVermelhos(p: Record<string, unknown> | null | undefined) {
+  if (!p) return 0;
+  const perMod =
+    (Number(p.cartoes_vermelhos_campo) || 0) +
+    (Number(p.cartoes_vermelhos_fut7) || 0) +
+    (Number(p.cartoes_vermelhos_futsal) || 0);
+  return perMod > 0 ? perMod : Number(p.cartoes_vermelhos) || 0;
+}
 
 export default function PerfilPage() {
   const { user, refreshUser } = useAuth();
@@ -62,7 +81,7 @@ export default function PerfilPage() {
         const searchName = [user.nome, user.sobrenome].filter(Boolean).join(' ').trim() || user.nome || '';
         const { data, error } = await supabase
           .from('players')
-          .select('id, nome, numero, posicao, idade, gols, assists, nivel, gols_campo, gols_fut7, gols_futsal, assistencias_campo, assistencias_fut7, assistencias_futsal, foto_url, cartoes_amarelos, cartoes_vermelhos')
+          .select('id, nome, numero, posicao, idade, gols, assists, nivel, gols_campo, gols_fut7, gols_futsal, assistencias_campo, assistencias_fut7, assistencias_futsal, foto_url, cartoes_amarelos, cartoes_vermelhos, cartoes_amarelos_campo, cartoes_amarelos_fut7, cartoes_amarelos_futsal, cartoes_vermelhos_campo, cartoes_vermelhos_fut7, cartoes_vermelhos_futsal')
           .eq('nome', searchName)
           .maybeSingle();
 
@@ -272,7 +291,7 @@ export default function PerfilPage() {
                 </p>
                 <p className="text-sm text-neutral-500">{user.email}</p>
                 {user.cpf && <p className="text-sm text-neutral-600 mt-1"><span className="font-semibold">CPF:</span> {user.cpf}</p>}
-                {user.data_nascimento && <p className="text-sm text-neutral-600"><span className="font-semibold">Nascimento:</span> {new Date(user.data_nascimento).toLocaleDateString('pt-BR')}</p>}
+                {user.data_nascimento && <p className="text-sm text-neutral-600"><span className="font-semibold">Nascimento:</span> {formatDateOnlyPtBrFull(user.data_nascimento)}</p>}
                 {(user.cep || user.logradouro || user.numero || user.bairro) && (
                   <p className="text-sm text-neutral-600 mt-1">
                     <span className="font-semibold">Endereço:</span>{' '}
@@ -344,11 +363,11 @@ export default function PerfilPage() {
                     </div>
                     <div>
                       <p className="text-xs text-neutral-500">CA</p>
-                      <p className="font-semibold text-neutral-700">{(playerStats as any).cartoes_amarelos ?? 0}</p>
+                      <p className="font-semibold text-neutral-700">{totalCartoesAmarelos(playerStats)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-neutral-500">CV</p>
-                      <p className="font-semibold text-neutral-700">{(playerStats as any).cartoes_vermelhos ?? 0}</p>
+                      <p className="font-semibold text-neutral-700">{totalCartoesVermelhos(playerStats)}</p>
                     </div>
                   </div>
                   {playerStats.nivel && (
@@ -380,7 +399,7 @@ export default function PerfilPage() {
                 </p>
                 <p className="text-sm text-neutral-500">{user.email}</p>
                 {user.cpf && <p className="text-sm text-neutral-600 mt-1"><span className="font-semibold">CPF:</span> {user.cpf}</p>}
-                {user.data_nascimento && <p className="text-sm text-neutral-600"><span className="font-semibold">Nascimento:</span> {new Date(user.data_nascimento).toLocaleDateString('pt-BR')}</p>}
+                {user.data_nascimento && <p className="text-sm text-neutral-600"><span className="font-semibold">Nascimento:</span> {formatDateOnlyPtBrFull(user.data_nascimento)}</p>}
                 <div className="mt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs">
                   <span
                     className={`inline-block px-3 py-1 rounded-full font-semibold ${

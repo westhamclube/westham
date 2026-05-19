@@ -8,6 +8,7 @@ import { Button } from '@/components/Button';
 import { useAuth } from '@/context/AuthContext';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { formatDateOnlyPtBrDayMonth, parseCalendarYmd } from '@/lib/date-only';
 import type { News, NewsModalidade } from '@/types';
 
 type MatchRow = { id: string; data: string; data_text?: string | null; adversario: string; local: string; modalidade?: string };
@@ -144,9 +145,9 @@ export default function HomePage() {
     const mesList: { nome: string; data_nascimento: string }[] = [];
     profiles.forEach((p: any) => {
       const dt = p.data_nascimento;
-      const parts = String(dt).split(/[-/]/);
-      const d = parseInt(parts[2] ?? parts[0], 10);
-      const m = parseInt(parts[1], 10);
+      const cal = parseCalendarYmd(dt);
+      if (!cal) return;
+      const { d, m } = cal;
       const nome = [p.first_name, p.last_name].filter(Boolean).join(' ') || p.full_name || 'Aniversariante';
       if (d === dia && m === mes) diaList.push({ nome, data_nascimento: dt });
       else if (m === mes) mesList.push({ nome, data_nascimento: dt });
@@ -232,7 +233,7 @@ export default function HomePage() {
                     ) : (
                       <ul className="space-y-1 max-h-40 overflow-y-auto">
                         {aniversariantesMes.map((a, i) => (
-                          <li key={i} className="text-neutral-100 text-sm">{a.nome} — {new Date(a.data_nascimento).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</li>
+                          <li key={i} className="text-neutral-100 text-sm">{a.nome} — {formatDateOnlyPtBrDayMonth(a.data_nascimento)}</li>
                         ))}
                       </ul>
                     )}

@@ -131,9 +131,12 @@ export default function AdminPage() {
   const [editModalidadesFut7, setEditModalidadesFut7] = useState(false);
   const [editModalidadesFutsal, setEditModalidadesFutsal] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<any | null>(null);
-  const [editPlayerGols, setEditPlayerGols] = useState<number>(0);
-  const [editPlayerCartoesA, setEditPlayerCartoesA] = useState<number>(0);
-  const [editPlayerCartoesV, setEditPlayerCartoesV] = useState<number>(0);
+  const [editPlayerCartoesACampo, setEditPlayerCartoesACampo] = useState(0);
+  const [editPlayerCartoesAFut7, setEditPlayerCartoesAFut7] = useState(0);
+  const [editPlayerCartoesAFutsal, setEditPlayerCartoesAFutsal] = useState(0);
+  const [editPlayerCartoesVCampo, setEditPlayerCartoesVCampo] = useState(0);
+  const [editPlayerCartoesVFut7, setEditPlayerCartoesVFut7] = useState(0);
+  const [editPlayerCartoesVFutsal, setEditPlayerCartoesVFutsal] = useState(0);
   const [editPlayerFaltas, setEditPlayerFaltas] = useState<number>(0);
   const [editPlayerReserva, setEditPlayerReserva] = useState(false);
   const [editPlayerFotoUrl, setEditPlayerFotoUrl] = useState('');
@@ -240,7 +243,7 @@ export default function AdminPage() {
             .limit(30),
           supabase
             .from('players')
-            .select('id, nome, numero, posicao, idade, gols, nivel, joga_campo, joga_fut7, joga_futsal, cartoes_amarelos, cartoes_vermelhos, faltas, reserva, foto_url, gols_campo, gols_fut7, gols_futsal, assistencias_campo, assistencias_fut7, assistencias_futsal, melhor_goleiro_campo, melhor_goleiro_fut7, melhor_goleiro_futsal')
+            .select('id, nome, numero, posicao, idade, gols, nivel, joga_campo, joga_fut7, joga_futsal, cartoes_amarelos, cartoes_vermelhos, cartoes_amarelos_campo, cartoes_amarelos_fut7, cartoes_amarelos_futsal, cartoes_vermelhos_campo, cartoes_vermelhos_fut7, cartoes_vermelhos_futsal, faltas, reserva, foto_url, gols_campo, gols_fut7, gols_futsal, assistencias_campo, assistencias_fut7, assistencias_futsal, melhor_goleiro_campo, melhor_goleiro_fut7, melhor_goleiro_futsal')
             .order('numero', { ascending: true }),
           supabase
             .from('store_products')
@@ -652,37 +655,50 @@ export default function AdminPage() {
     });
   };
 
-  const handleUpdatePlayerGoals = async (id: string, goals: number) => {
-    setPlayersList((prev) => prev.map((p) => (p.id === id ? { ...p, gols: goals } : p)));
-    await supabase.from('players').update({ gols: goals }).eq('id', id);
-  };
-
   const handleSavePlayerFull = async () => {
     const p = editingPlayer;
     if (!p) return handleAddPlayer();
+    const golsCampo = playerJogaCampo ? editPlayerGolsCampo : 0;
+    const golsFut7 = playerJogaFut7 ? editPlayerGolsFut7 : 0;
+    const golsFutsal = playerJogaFutsal ? editPlayerGolsFutsal : 0;
+    const assistCampo = playerJogaCampo ? editPlayerAssistCampo : 0;
+    const assistFut7 = playerJogaFut7 ? editPlayerAssistFut7 : 0;
+    const assistFutsal = playerJogaFutsal ? editPlayerAssistFutsal : 0;
+    const caCampo = playerJogaCampo ? editPlayerCartoesACampo : 0;
+    const caFut7 = playerJogaFut7 ? editPlayerCartoesAFut7 : 0;
+    const caFutsal = playerJogaFutsal ? editPlayerCartoesAFutsal : 0;
+    const cvCampo = playerJogaCampo ? editPlayerCartoesVCampo : 0;
+    const cvFut7 = playerJogaFut7 ? editPlayerCartoesVFut7 : 0;
+    const cvFutsal = playerJogaFutsal ? editPlayerCartoesVFutsal : 0;
     const payload = {
       nome: playerName.trim(),
       numero: parseInt(playerNumber, 10),
       posicao: playerPosition.trim(),
       idade: playerAge ? parseInt(playerAge, 10) : null,
-      gols: editPlayerGols ?? p.gols ?? 0,
-      cartoes_amarelos: editPlayerCartoesA ?? p.cartoes_amarelos ?? 0,
-      cartoes_vermelhos: editPlayerCartoesV ?? p.cartoes_vermelhos ?? 0,
+      gols: golsCampo + golsFut7 + golsFutsal,
+      cartoes_amarelos: caCampo + caFut7 + caFutsal,
+      cartoes_vermelhos: cvCampo + cvFut7 + cvFutsal,
+      cartoes_amarelos_campo: caCampo,
+      cartoes_amarelos_fut7: caFut7,
+      cartoes_amarelos_futsal: caFutsal,
+      cartoes_vermelhos_campo: cvCampo,
+      cartoes_vermelhos_fut7: cvFut7,
+      cartoes_vermelhos_futsal: cvFutsal,
       faltas: editPlayerFaltas ?? p.faltas ?? 0,
       reserva: editPlayerReserva ?? !!p.reserva,
       joga_campo: playerJogaCampo,
       joga_fut7: playerJogaFut7,
       joga_futsal: playerJogaFutsal,
       foto_url: editPlayerFotoUrl.trim() || null,
-      gols_campo: editPlayerGolsCampo,
-      gols_fut7: editPlayerGolsFut7,
-      gols_futsal: editPlayerGolsFutsal,
-      assistencias_campo: editPlayerAssistCampo,
-      assistencias_fut7: editPlayerAssistFut7,
-      assistencias_futsal: editPlayerAssistFutsal,
-      melhor_goleiro_campo: editPlayerMelhorGoleiroCampo,
-      melhor_goleiro_fut7: editPlayerMelhorGoleiroFut7,
-      melhor_goleiro_futsal: editPlayerMelhorGoleiroFutsal,
+      gols_campo: golsCampo,
+      gols_fut7: golsFut7,
+      gols_futsal: golsFutsal,
+      assistencias_campo: assistCampo,
+      assistencias_fut7: assistFut7,
+      assistencias_futsal: assistFutsal,
+      melhor_goleiro_campo: playerJogaCampo ? editPlayerMelhorGoleiroCampo : false,
+      melhor_goleiro_fut7: playerJogaFut7 ? editPlayerMelhorGoleiroFut7 : false,
+      melhor_goleiro_futsal: playerJogaFutsal ? editPlayerMelhorGoleiroFutsal : false,
     };
     const { error } = await supabase.from('players').update(payload).eq('id', p.id);
     if (error) {
@@ -709,9 +725,12 @@ export default function AdminPage() {
     setPlayerJogaCampo(true);
     setPlayerJogaFut7(false);
     setPlayerJogaFutsal(false);
-    setEditPlayerGols(0);
-    setEditPlayerCartoesA(0);
-    setEditPlayerCartoesV(0);
+    setEditPlayerCartoesACampo(0);
+    setEditPlayerCartoesAFut7(0);
+    setEditPlayerCartoesAFutsal(0);
+    setEditPlayerCartoesVCampo(0);
+    setEditPlayerCartoesVFut7(0);
+    setEditPlayerCartoesVFutsal(0);
     setEditPlayerFaltas(0);
     setEditPlayerReserva(false);
     setEditPlayerFotoUrl('');
@@ -735,9 +754,32 @@ export default function AdminPage() {
     setPlayerJogaCampo(player.joga_campo !== false);
     setPlayerJogaFut7(!!player.joga_fut7);
     setPlayerJogaFutsal(!!player.joga_futsal);
-    setEditPlayerGols(player.gols ?? 0);
-    setEditPlayerCartoesA(player.cartoes_amarelos ?? 0);
-    setEditPlayerCartoesV(player.cartoes_vermelhos ?? 0);
+    let caC = Number(player.cartoes_amarelos_campo) || 0;
+    let ca7 = Number(player.cartoes_amarelos_fut7) || 0;
+    let caFs = Number(player.cartoes_amarelos_futsal) || 0;
+    let cvC = Number(player.cartoes_vermelhos_campo) || 0;
+    let cv7 = Number(player.cartoes_vermelhos_fut7) || 0;
+    let cvFs = Number(player.cartoes_vermelhos_futsal) || 0;
+    const sumCA = caC + ca7 + caFs;
+    const sumCV = cvC + cv7 + cvFs;
+    const legA = Number(player.cartoes_amarelos) || 0;
+    const legV = Number(player.cartoes_vermelhos) || 0;
+    if (sumCA === 0 && legA > 0) {
+      if (player.joga_campo !== false && !player.joga_fut7 && !player.joga_futsal) caC = legA;
+      else if (player.joga_campo === false && player.joga_fut7 && !player.joga_futsal) ca7 = legA;
+      else if (player.joga_campo === false && !player.joga_fut7 && player.joga_futsal) caFs = legA;
+    }
+    if (sumCV === 0 && legV > 0) {
+      if (player.joga_campo !== false && !player.joga_fut7 && !player.joga_futsal) cvC = legV;
+      else if (player.joga_campo === false && player.joga_fut7 && !player.joga_futsal) cv7 = legV;
+      else if (player.joga_campo === false && !player.joga_fut7 && player.joga_futsal) cvFs = legV;
+    }
+    setEditPlayerCartoesACampo(caC);
+    setEditPlayerCartoesAFut7(ca7);
+    setEditPlayerCartoesAFutsal(caFs);
+    setEditPlayerCartoesVCampo(cvC);
+    setEditPlayerCartoesVFut7(cv7);
+    setEditPlayerCartoesVFutsal(cvFs);
     setEditPlayerFaltas(player.faltas ?? 0);
     setEditPlayerReserva(!!player.reserva);
     setEditPlayerFotoUrl(player.foto_url || '');
@@ -2097,70 +2139,7 @@ export default function AdminPage() {
                     value={playerAge}
                     onChange={(e) => setPlayerAge(e.target.value)}
                   />
-                  {editingPlayer && (
-                    <>
-                      <Input label="Gols" type="number" value={String(editPlayerGols)} onChange={(e) => setEditPlayerGols(parseInt(e.target.value) || 0)} />
-                      <Input label="Cartões Amarelos" type="number" value={String(editPlayerCartoesA)} onChange={(e) => setEditPlayerCartoesA(parseInt(e.target.value) || 0)} />
-                      <Input label="Cartões Vermelhos" type="number" value={String(editPlayerCartoesV)} onChange={(e) => setEditPlayerCartoesV(parseInt(e.target.value) || 0)} />
-                      <Input label="Faltas" type="number" value={String(editPlayerFaltas)} onChange={(e) => setEditPlayerFaltas(parseInt(e.target.value) || 0)} />
-                      <ImageUpload
-                        label="Foto (aba Jogos)"
-                        currentUrl={editPlayerFotoUrl}
-                        onUpload={async (file) => {
-                          const p = editingPlayer;
-                          const url = await uploadPlayerPhoto(file, p?.id || crypto.randomUUID(), editPlayerFotoUrl);
-                          setEditPlayerFotoUrl(url);
-                          return url;
-                        }}
-                      />
-                      <div className="mt-4 p-5 bg-orange-50/80 border-2 border-orange-200 rounded-xl">
-                        <h3 className="text-base font-bold text-gray-900 mb-4 border-b border-orange-200 pb-2">⭐ Jogadores Destaque</h3>
-                        <p className="text-sm text-gray-700 mb-4">O <strong>artilheiro</strong> (mais gols) e o <strong>melhor em assistências</strong> aparecem automaticamente. O admin marca o <strong>melhor artilheiro</strong> e o <strong>melhor goleiro</strong> por modalidade.</p>
-                        <div className="flex flex-col gap-4">
-                          <div className="flex items-center gap-2">
-                            <input type="checkbox" id="editReserva" checked={editPlayerReserva} onChange={(e) => setEditPlayerReserva(e.target.checked)} className="w-5 h-5 rounded border-gray-400" />
-                            <label htmlFor="editReserva" className="font-semibold text-gray-900">Reserva</label>
-                          </div>
-                          <div>
-                            <span className="font-bold text-gray-900 block mb-2">Gols por modalidade</span>
-                            <div className="grid grid-cols-3 gap-3">
-                              <Input label="FUT11" type="number" min={0} value={String(editPlayerGolsCampo)} onChange={(e) => setEditPlayerGolsCampo(parseInt(e.target.value) || 0)} className="bg-white" />
-                              <Input label="FUT 7" type="number" min={0} value={String(editPlayerGolsFut7)} onChange={(e) => setEditPlayerGolsFut7(parseInt(e.target.value) || 0)} className="bg-white" />
-                              <Input label="FUTSAL" type="number" min={0} value={String(editPlayerGolsFutsal)} onChange={(e) => setEditPlayerGolsFutsal(parseInt(e.target.value) || 0)} className="bg-white" />
-                            </div>
-                          </div>
-                          <div>
-                            <span className="font-bold text-gray-900 block mb-2">Assistências por modalidade</span>
-                            <div className="grid grid-cols-3 gap-3">
-                              <Input label="FUT11" type="number" min={0} value={String(editPlayerAssistCampo)} onChange={(e) => setEditPlayerAssistCampo(parseInt(e.target.value) || 0)} className="bg-white" />
-                              <Input label="FUT 7" type="number" min={0} value={String(editPlayerAssistFut7)} onChange={(e) => setEditPlayerAssistFut7(parseInt(e.target.value) || 0)} className="bg-white" />
-                              <Input label="FUTSAL" type="number" min={0} value={String(editPlayerAssistFutsal)} onChange={(e) => setEditPlayerAssistFutsal(parseInt(e.target.value) || 0)} className="bg-white" />
-                            </div>
-                          </div>
-                          <div>
-                            <span className="font-bold text-gray-900 block mb-2">Melhor goleiro (admin marca por modalidade)</span>
-                            <div className="flex flex-wrap gap-4">
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" checked={editPlayerMelhorGoleiroCampo} onChange={(e) => setEditPlayerMelhorGoleiroCampo(e.target.checked)} className="w-5 h-5 rounded border-gray-400" />
-                                <span className="font-medium text-gray-900">FUT11</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" checked={editPlayerMelhorGoleiroFut7} onChange={(e) => setEditPlayerMelhorGoleiroFut7(e.target.checked)} className="w-5 h-5 rounded border-gray-400" />
-                                <span className="font-medium text-gray-900">FUT 7</span>
-                              </label>
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" checked={editPlayerMelhorGoleiroFutsal} onChange={(e) => setEditPlayerMelhorGoleiroFutsal(e.target.checked)} className="w-5 h-5 rounded border-gray-400" />
-                                <span className="font-medium text-gray-900">FUTSAL</span>
-                              </label>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg border-2 border-gray-200">
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg border-2 border-gray-200 md:col-span-2">
                   <p className="text-sm font-semibold text-gray-700 mb-3">Onde joga? (marque um ou mais)</p>
                   <div className="flex flex-wrap gap-6">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -2192,6 +2171,138 @@ export default function AdminPage() {
                     </label>
                   </div>
                 </div>
+                  {editingPlayer && (
+                    <>
+                      <Input label="Faltas" type="number" value={String(editPlayerFaltas)} onChange={(e) => setEditPlayerFaltas(parseInt(e.target.value) || 0)} />
+                      <ImageUpload
+                        label="Foto (aba Jogos)"
+                        currentUrl={editPlayerFotoUrl}
+                        onUpload={async (file) => {
+                          const p = editingPlayer;
+                          const url = await uploadPlayerPhoto(file, p?.id || crypto.randomUUID(), editPlayerFotoUrl);
+                          setEditPlayerFotoUrl(url);
+                          return url;
+                        }}
+                      />
+                      <div className="mt-4 p-5 bg-orange-50/80 border-2 border-orange-200 rounded-xl">
+                        <h3 className="text-base font-bold text-gray-900 mb-4 border-b border-orange-200 pb-2">⭐ Jogadores Destaque</h3>
+                        <p className="text-sm text-gray-700 mb-4">O <strong>artilheiro</strong> (mais gols) e o <strong>melhor em assistências</strong> aparecem automaticamente por modalidade no site. O admin marca o <strong>melhor goleiro</strong> por modalidade. Só aparecem aqui as modalidades marcadas em <strong>Onde joga?</strong>; gols, assistências e cartões de modalidades desmarcadas são zerados ao salvar.</p>
+                        <div className="flex flex-col gap-4">
+                          <div className="flex items-center gap-2">
+                            <input type="checkbox" id="editReserva" checked={editPlayerReserva} onChange={(e) => setEditPlayerReserva(e.target.checked)} className="w-5 h-5 rounded border-gray-400" />
+                            <label htmlFor="editReserva" className="font-semibold text-gray-900">Reserva</label>
+                          </div>
+                          <div>
+                            <span className="font-bold text-gray-900 block mb-2">Gols por modalidade</span>
+                            {!playerJogaCampo && !playerJogaFut7 && !playerJogaFutsal && (
+                              <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2">Marque acima em &quot;Onde joga?&quot; pelo menos uma modalidade para editar gols.</p>
+                            )}
+                            <div className="flex flex-wrap gap-3">
+                              {playerJogaCampo && (
+                                <div className="min-w-[140px] flex-1">
+                                  <Input label="FUT11" type="number" min={0} value={String(editPlayerGolsCampo)} onChange={(e) => setEditPlayerGolsCampo(parseInt(e.target.value) || 0)} className="bg-white" />
+                                </div>
+                              )}
+                              {playerJogaFut7 && (
+                                <div className="min-w-[140px] flex-1">
+                                  <Input label="FUT 7" type="number" min={0} value={String(editPlayerGolsFut7)} onChange={(e) => setEditPlayerGolsFut7(parseInt(e.target.value) || 0)} className="bg-white" />
+                                </div>
+                              )}
+                              {playerJogaFutsal && (
+                                <div className="min-w-[140px] flex-1">
+                                  <Input label="FUTSAL" type="number" min={0} value={String(editPlayerGolsFutsal)} onChange={(e) => setEditPlayerGolsFutsal(parseInt(e.target.value) || 0)} className="bg-white" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="font-bold text-gray-900 block mb-2">Assistências por modalidade</span>
+                            <div className="flex flex-wrap gap-3">
+                              {playerJogaCampo && (
+                                <div className="min-w-[140px] flex-1">
+                                  <Input label="FUT11" type="number" min={0} value={String(editPlayerAssistCampo)} onChange={(e) => setEditPlayerAssistCampo(parseInt(e.target.value) || 0)} className="bg-white" />
+                                </div>
+                              )}
+                              {playerJogaFut7 && (
+                                <div className="min-w-[140px] flex-1">
+                                  <Input label="FUT 7" type="number" min={0} value={String(editPlayerAssistFut7)} onChange={(e) => setEditPlayerAssistFut7(parseInt(e.target.value) || 0)} className="bg-white" />
+                                </div>
+                              )}
+                              {playerJogaFutsal && (
+                                <div className="min-w-[140px] flex-1">
+                                  <Input label="FUTSAL" type="number" min={0} value={String(editPlayerAssistFutsal)} onChange={(e) => setEditPlayerAssistFutsal(parseInt(e.target.value) || 0)} className="bg-white" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="font-bold text-gray-900 block mb-2">Cartões amarelos por modalidade</span>
+                            <div className="flex flex-wrap gap-3">
+                              {playerJogaCampo && (
+                                <div className="min-w-[140px] flex-1">
+                                  <Input label="FUT11" type="number" min={0} value={String(editPlayerCartoesACampo)} onChange={(e) => setEditPlayerCartoesACampo(parseInt(e.target.value) || 0)} className="bg-white" />
+                                </div>
+                              )}
+                              {playerJogaFut7 && (
+                                <div className="min-w-[140px] flex-1">
+                                  <Input label="FUT 7" type="number" min={0} value={String(editPlayerCartoesAFut7)} onChange={(e) => setEditPlayerCartoesAFut7(parseInt(e.target.value) || 0)} className="bg-white" />
+                                </div>
+                              )}
+                              {playerJogaFutsal && (
+                                <div className="min-w-[140px] flex-1">
+                                  <Input label="FUTSAL" type="number" min={0} value={String(editPlayerCartoesAFutsal)} onChange={(e) => setEditPlayerCartoesAFutsal(parseInt(e.target.value) || 0)} className="bg-white" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="font-bold text-gray-900 block mb-2">Cartões vermelhos por modalidade</span>
+                            <div className="flex flex-wrap gap-3">
+                              {playerJogaCampo && (
+                                <div className="min-w-[140px] flex-1">
+                                  <Input label="FUT11" type="number" min={0} value={String(editPlayerCartoesVCampo)} onChange={(e) => setEditPlayerCartoesVCampo(parseInt(e.target.value) || 0)} className="bg-white" />
+                                </div>
+                              )}
+                              {playerJogaFut7 && (
+                                <div className="min-w-[140px] flex-1">
+                                  <Input label="FUT 7" type="number" min={0} value={String(editPlayerCartoesVFut7)} onChange={(e) => setEditPlayerCartoesVFut7(parseInt(e.target.value) || 0)} className="bg-white" />
+                                </div>
+                              )}
+                              {playerJogaFutsal && (
+                                <div className="min-w-[140px] flex-1">
+                                  <Input label="FUTSAL" type="number" min={0} value={String(editPlayerCartoesVFutsal)} onChange={(e) => setEditPlayerCartoesVFutsal(parseInt(e.target.value) || 0)} className="bg-white" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="font-bold text-gray-900 block mb-2">Melhor goleiro (admin marca por modalidade)</span>
+                            <div className="flex flex-wrap gap-4">
+                              {playerJogaCampo && (
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input type="checkbox" checked={editPlayerMelhorGoleiroCampo} onChange={(e) => setEditPlayerMelhorGoleiroCampo(e.target.checked)} className="w-5 h-5 rounded border-gray-400" />
+                                  <span className="font-medium text-gray-900">FUT11</span>
+                                </label>
+                              )}
+                              {playerJogaFut7 && (
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input type="checkbox" checked={editPlayerMelhorGoleiroFut7} onChange={(e) => setEditPlayerMelhorGoleiroFut7(e.target.checked)} className="w-5 h-5 rounded border-gray-400" />
+                                  <span className="font-medium text-gray-900">FUT 7</span>
+                                </label>
+                              )}
+                              {playerJogaFutsal && (
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input type="checkbox" checked={editPlayerMelhorGoleiroFutsal} onChange={(e) => setEditPlayerMelhorGoleiroFutsal(e.target.checked)} className="w-5 h-5 rounded border-gray-400" />
+                                  <span className="font-medium text-gray-900">FUTSAL</span>
+                                </label>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
 
                 <div className="flex gap-3 mt-6">
                   <Button size="lg" className="flex-1" onClick={editingPlayer ? handleSavePlayerFull : handleAddPlayer}>
@@ -2218,9 +2329,9 @@ export default function AdminPage() {
                         <th className="text-left py-3 px-4 font-semibold text-gray-800">Posição</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-800">Onde joga</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-800">Idade</th>
-                        <th className="text-left py-3 px-4 font-semibold text-gray-800">Gols</th>
-                        <th className="text-left py-3 px-4 font-semibold text-gray-800">🟨</th>
-                        <th className="text-left py-3 px-4 font-semibold text-gray-800">🟥</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-800">Gols (total)</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-800">🟨 (total)</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-800">🟥 (total)</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-800">Faltas</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-800">Reserva</th>
                         <th className="text-left py-3 px-4 font-semibold text-gray-800">Ações</th>
@@ -2245,9 +2356,27 @@ export default function AdminPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4 text-gray-600">{player.idade ?? '—'} {player.idade != null ? 'anos' : ''}</td>
-                          <td className="py-3 px-4 text-gray-600">{player.gols ?? 0}</td>
-                          <td className="py-3 px-4">{player.cartoes_amarelos ?? 0}</td>
-                          <td className="py-3 px-4">{player.cartoes_vermelhos ?? 0}</td>
+                          <td className="py-3 px-4 text-gray-600">
+                            {(Number(player.gols_campo) || 0) + (Number(player.gols_fut7) || 0) + (Number(player.gols_futsal) || 0)}
+                          </td>
+                          <td className="py-3 px-4">
+                            {(() => {
+                              const s =
+                                (Number(player.cartoes_amarelos_campo) || 0) +
+                                (Number(player.cartoes_amarelos_fut7) || 0) +
+                                (Number(player.cartoes_amarelos_futsal) || 0);
+                              return s > 0 ? s : Number(player.cartoes_amarelos) || 0;
+                            })()}
+                          </td>
+                          <td className="py-3 px-4">
+                            {(() => {
+                              const s =
+                                (Number(player.cartoes_vermelhos_campo) || 0) +
+                                (Number(player.cartoes_vermelhos_fut7) || 0) +
+                                (Number(player.cartoes_vermelhos_futsal) || 0);
+                              return s > 0 ? s : Number(player.cartoes_vermelhos) || 0;
+                            })()}
+                          </td>
                           <td className="py-3 px-4">{player.faltas ?? 0}</td>
                           <td className="py-3 px-4">{player.reserva ? 'Sim' : 'Não'}</td>
                           <td className="py-3 px-4 flex gap-2 flex-wrap">

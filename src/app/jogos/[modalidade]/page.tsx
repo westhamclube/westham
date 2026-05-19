@@ -143,6 +143,8 @@ export default function JogosModalidadePage() {
 
   const golsKey = modalidade === 'campo' ? 'gols_campo' : modalidade === 'fut7' ? 'gols_fut7' : 'gols_futsal';
   const assistsKey = modalidade === 'campo' ? 'assistencias_campo' : modalidade === 'fut7' ? 'assistencias_fut7' : 'assistencias_futsal';
+  const caKey = modalidade === 'campo' ? 'cartoes_amarelos_campo' : modalidade === 'fut7' ? 'cartoes_amarelos_fut7' : 'cartoes_amarelos_futsal';
+  const cvKey = modalidade === 'campo' ? 'cartoes_vermelhos_campo' : modalidade === 'fut7' ? 'cartoes_vermelhos_fut7' : 'cartoes_vermelhos_futsal';
   const melhorGoleiroKey = modalidade === 'campo' ? 'melhor_goleiro_campo' : modalidade === 'fut7' ? 'melhor_goleiro_fut7' : 'melhor_goleiro_futsal';
   const melhorGoleiro = players.find((p: any) => !!p[melhorGoleiroKey]);
   const artilheiro = [...players].filter((p: any) => (p[golsKey] ?? 0) > 0).sort((a: any, b: any) => (b[golsKey] ?? 0) - (a[golsKey] ?? 0))[0];
@@ -386,10 +388,10 @@ export default function JogosModalidadePage() {
                       <tr key={p.id} className="border-b border-neutral-800 hover:bg-neutral-800/50">
                         <td className="py-3 px-2 font-medium text-neutral-100">#{p.numero ?? p.numero_camisa ?? '?'} {p.nome}</td>
                         <td className="py-3 px-2 text-neutral-300">{p.posicao || '—'}</td>
-                        <td className="py-3 px-2 text-orange-400">{(p[golsKey] ?? p.gols ?? 0)}</td>
+                        <td className="py-3 px-2 text-orange-400">{Number(p[golsKey]) || 0}</td>
                         <td className="py-3 px-2 text-orange-400">{(p[assistsKey] ?? 0)}</td>
-                        <td className="py-3 px-2 text-yellow-400">{p.cartoes_amarelos ?? 0}</td>
-                        <td className="py-3 px-2 text-red-400">{p.cartoes_vermelhos ?? 0}</td>
+                        <td className="py-3 px-2 text-yellow-400">{Number(p[caKey]) || 0}</td>
+                        <td className="py-3 px-2 text-red-400">{Number(p[cvKey]) || 0}</td>
                       </tr>
                     ))}
                   </tbody>
