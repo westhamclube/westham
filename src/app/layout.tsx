@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { Footer } from '@/components/Footer';
+import { SITE_URL } from '@/lib/site-config';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -14,7 +15,6 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-const siteUrl = 'https://westham.vercel.app';
 const defaultTitle = 'Sport Club Westham';
 const defaultDescription =
   'App oficial do Sport Club Westham - Notícias, Escalações, Sociedade de Sócios e Projetos do Clube';
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   keywords: ['Sport Club Westham', 'Westham', 'clube', 'futebol', 'sócio', 'notícias', 'escalação', 'projetos'],
   authors: [{ name: 'Sport Club Westham' }],
   creator: 'Sport Club Westham',
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(SITE_URL),
   robots: { index: true, follow: true },
   icons: {
     icon: [{ url: '/logoswest/black.ico', type: 'image/x-icon' }],
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: 'website',
-    url: siteUrl,
+    url: SITE_URL,
     siteName: defaultTitle,
     title: defaultTitle,
     description: defaultDescription,

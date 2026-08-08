@@ -2,6 +2,12 @@
  * Configuração centralizada do site - redes sociais e links oficiais.
  * Usado no Footer e no Dashboard automaticamente.
  */
+
+/** URL canônica do site (domínio de produção). Defina NEXT_PUBLIC_APP_URL no Vercel e no .env. */
+export const SITE_URL = (
+  process.env.NEXT_PUBLIC_APP_URL || 'https://farrus.com.br'
+).replace(/\/$/, '');
+
 export const SITE_SOCIAL = {
   facebook: 'https://facebook.com/share/1FEcnNWcKn/?mibextid=wwXIfr',
   instagram: 'https://www.instagram.com/clubewestham?igsh=MXN2eHQ5Yndqcmpoaw==',
